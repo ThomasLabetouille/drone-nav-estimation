@@ -4,11 +4,12 @@
 
 Simulation de capteurs et estimation d'état pour un drone à voilure fixe, en Python, avec un portage C++ prévu une fois les algorithmes validés.
 
-Le projet avance par étapes. Chacune ajoute des capteurs ou des états au filtre et se valide avant de passer à la suivante. Trois étapes sont faites :
+Le projet avance par étapes. Chacune ajoute des capteurs ou des états au filtre et se valide avant de passer à la suivante. Quatre étapes sont faites :
 
 1. la voie verticale : un filtre de Kalman qui fusionne un accéléromètre et un baromètre ;
 2. la navigation inertielle en 3D : trajectoire de voilure fixe, IMU 6 axes, intégration strapdown, et l'erreur d'une IMU MEMS seule comparée à son budget analytique ;
-3. un EKF à état d'erreur à 15 états qui fusionne l'IMU et le GNSS, avec ce qu'il apprend à chaque manœuvre et ce qu'il ne peut pas apprendre en ligne droite.
+3. un EKF à état d'erreur à 15 états qui fusionne l'IMU et le GNSS, avec ce qu'il apprend à chaque manœuvre et ce qu'il ne peut pas apprendre en ligne droite ;
+4. un GNSS réaliste : erreurs corrélées dans le temps, estimées par trois états de plus, et 150 ms de latence gérée par un filtre à horizon retardé.
 
 ![Estimation d'altitude sur une mission complète](docs/img/step1_estimation.png)
 
@@ -16,10 +17,11 @@ Le projet avance par étapes. Chacune ajoute des capteurs ou des états au filtr
 
 ```bash
 pip install -e ".[dev]"
-python -m pytest                       # environ une minute et demie
+python -m pytest                       # environ deux minutes
 python scripts/step1_altitude.py       # étape 1, ~45 s
 python scripts/step2_strapdown.py      # étape 2, ~50 s
 python scripts/step3_eskf.py           # étape 3, ~2 min 30
+python scripts/step4_gnss.py           # étape 4, ~5 min
 python scripts/step2_strapdown.py --runs 100   # plus rapide, moins de Monte-Carlo
 python scripts/check_provenance.py     # les résultats de docs/ correspondent-ils au code actuel ?
 ```
@@ -247,6 +249,57 @@ L'excès disparaît quand l'erreur initiale diminue, ce qui confirme l'hypothès
 
 Le script `step3_eskf.py` refait cette comparaison à chaque exécution.
 
+## Étape 4 : GNSS réaliste, erreurs corrélées et latence
+
+![Latence GNSS](docs/img/step4_latency.png)
+
+Le GNSS de l'étape 3 avait des erreurs blanches et aucune latence, deux hypothèses qu'aucun récepteur ne respecte. Ici, l'erreur totale de position reste la même (1,5 m à l'horizontale, 3 m en vertical), mais elle est découpée autrement :
+
+- un bruit blanc de 0,5 m / 1 m ;
+- une erreur de Gauss-Markov du premier ordre de 1,4 m / 2,8 m, corrélée sur 60 s (atmosphère, trajets multiples) ;
+- une vitesse Doppler qui reste blanche ;
+- une latence de 150 ms : la mesure décrit l'état à `t` mais arrive au filtre à `t + 150 ms`.
+
+Toutes les configurations tournent sur la même mission, avec 50 runs et la même graine. Les erreurs sont celles de l'état délivré en temps réel, celui qu'utiliserait le pilote automatique, et sont mesurées après 120 s.
+
+### Erreurs corrélées
+
+| | Position horiz. | NEES position | NIS GNSS |
+|---|---|---|---|
+| A : erreurs blanches (étape 3) | 0,24 m | 1,02 | 1,00 |
+| B : erreurs corrélées, traitées comme blanches | 1,78 m | 53 | 0,65 |
+| C : erreurs corrélées, estimées par 3 états de plus | 1,18 m | 0,93 | 1,00 |
+
+![Erreurs corrélées](docs/img/step4_correlated.png)
+
+**B.** Le filtre traite une erreur qui dure une minute comme si elle changeait à chaque mesure. Il croit donc pouvoir la moyenner et annonce ±0,5 m (3σ), alors qu'il suit l'erreur du récepteur jusqu'à 2,5 m. C'est la même situation que la dérive du baro de l'étape 1.
+
+Le NIS, seul test disponible en vol, dit même le contraire de la réalité : il vaut 0,65, donc le filtre a l'air trop prudent. La raison est que deux mesures successives portent presque la même erreur. L'innovation ne voit plus que la partie blanche (0,5 m), alors que le filtre attend 1,5 m.
+
+**C.** Trois états de biais GNSS (Gauss-Markov, τ = 60 s) passent le filtre à 18 états. À l'initialisation sur le premier point, l'erreur de position vaut `−(b + n)` et l'erreur de biais vaut `b`, d'où un terme croisé négatif dans `P0`, exactement comme pour le baro de l'étape 1. Le filtre redevient cohérent, et l'erreur baisse d'un tiers (1,18 m contre 1,78 m). La vitesse Doppler n'est pas biaisée : intégrée, elle donne une position relative fiable qui permet de séparer une partie du biais de la vraie position.
+
+### Latence de 150 ms
+
+| | Position horiz. | Cap | NEES attitude | NIS GNSS |
+|---|---|---|---|---|
+| latence ignorée | 2,97 m | 2,63° | 61 | 1,18 |
+| latence compensée sur la position (`z += v · 150 ms`) | 2,34 m | 2,57° | 58 | 1,25 |
+| horizon retardé + prédicteur de sortie | 1,23 m | 0,46° | 1,02 | 1,00 |
+
+**Latence ignorée.** En ligne droite, le filtre place l'avion là où il était 150 ms plus tôt, soit 2,5 m de retard à 17 m/s (3,3 m pendant la pointe à 22 m/s, bien visible sur la figure). En virage, c'est pire, parce que la mesure se trompe aussi de direction de vitesse. À 19 °/s de taux de virage, 150 ms font 2,9° : un écart latéral de 0,86 m/s que le filtre ne peut expliquer que par une erreur d'attitude ou de biais gyro. Le cap et le biais du gyro de lacet sont faussés à chaque virage, puis le cap dérive à chaque ligne droite (la rampe entre 300 et 400 s). Le NEES d'attitude monte à 61.
+
+**Compensation de la position.** Avancer la position mesurée de `v · 150 ms` corrige le retard en ligne droite. La vitesse mesurée reste en retard en virage, donc l'attitude reste fausse et l'erreur de position revient dès le premier virage.
+
+**Horizon retardé.** Le filtre tourne 150 ms dans le passé. Chaque mesure GNSS y arrive exactement à sa date, et le filtre lui-même est celui de C. L'état présent est obtenu en réintégrant les 30 derniers échantillons IMU gardés en mémoire (le prédicteur de sortie), sans covariance. C'est le principe de l'EKF2 de PX4. Toutes les erreurs reviennent au niveau de C (1,23 m contre 1,18 m), et la cohérence aussi.
+
+Le NIS de la latence ignorée ne vaut que 1,18 en moyenne. En ligne droite, il reste à 1 : le filtre absorbe le retard en décalant son état, et rien ne le signale. Il ne monte qu'en virage (jusqu'à 3,7 pendant les virages en S). Un NIS qui ne grimpe qu'en virage est la signature à chercher dans des logs réels.
+
+Le code est dans `src/navsim/fusion.py` (les trois stratégies), `src/navsim/eskf.py` (états de biais GNSS) et `src/navsim/gnss.py`.
+
+### Écarts rencontrés
+
+La généralisation du filtre (15 ou 18 états, matrice `H` explicite, boucle avec file d'échantillons IMU) touchait du code dont dépend l'étape 3. J'ai relancé l'étape 3 et comparé son tableau de résultats avec l'ancien, en ignorant la section provenance : aucun chiffre n'a changé. Un test vérifie aussi que le mode « horizon retardé » sans latence donne exactement le même filtre que le mode normal.
+
 ## Provenance des résultats
 
 Chaque `docs/stepN_results.md` se termine par une section « Provenance », complétée par un fichier JSON voisin. Le script calcule lui-même, au moment d'écrire ses résultats, une empreinte SHA-256 des modules qu'il a réellement importés et de son propre code. Il enregistre aussi les paramètres, la graine, les versions des bibliothèques et le commit git quand il est disponible. Les fins de ligne sont normalisées avant le hachage, donc un clone Windows et un clone Linux du même commit donnent la même empreinte.
@@ -265,19 +318,21 @@ src/navsim/
   trajectory3d.py     étape 2 : trajectoire 3D et incréments IMU idéaux
   imu.py              étape 2 : modèle d'erreur IMU 6 axes
   strapdown.py        étape 2 : intégration strapdown, budget d'erreur analytique
-  gnss.py             étape 3 : récepteur GNSS, position et vitesse
-  eskf.py             étape 3 : EKF à état d'erreur, 15 états
-  fusion.py           étape 3 : boucle IMU + GNSS en Monte-Carlo, NEES par bloc, NIS
+  gnss.py             étapes 3-4 : récepteur GNSS, erreurs corrélées, latence
+  eskf.py             étapes 3-4 : EKF à état d'erreur, 15 ou 18 états
+  fusion.py           étapes 3-4 : boucle IMU + GNSS en Monte-Carlo, stratégies de latence
   provenance.py       empreinte du code et des paramètres de chaque résultat
 scripts/
   step1_altitude.py   figures et tableau de l'étape 1
   step2_strapdown.py  figures et tableau de l'étape 2
   step3_eskf.py       figures et tableau de l'étape 3
+  step4_gnss.py       figures et tableau de l'étape 4
   check_provenance.py vérifie que les résultats de docs/ correspondent au code
 tests/
   test_step1.py       vérité cohérente, Van Loan, covariance définie positive, cohérence NEES
   test_step2.py       conventions, cohérence IMU/vérité, strapdown, Monte-Carlo contre budget
   test_step3.py       jacobienne F contre propagation non linéaire, cohérence, observabilité du cap
+  test_step4.py       erreur GNSS corrélée, états de biais, horizon retardé contre latence ignorée
   test_provenance.py  empreinte stable, résultats à jour
 docs/
   stepN_results.md    tableaux générés par les scripts, avec leur provenance
@@ -287,7 +342,6 @@ docs/
 
 ## Suite
 
-4. GNSS réaliste : erreurs corrélées dans le temps, latence de 100 à 200 ms fusionnée à l'horizon retardé avec un buffer d'état.
 5. Baro, magnétomètre, Pitot et estimation du vent.
 6. Modes dégradés : perte GNSS, perturbation magnétique, vibrations. Gating des innovations et détection de capteur défaillant.
 7. Rejeu de logs de vol PX4 réels et comparaison avec l'EKF2 embarqué.
