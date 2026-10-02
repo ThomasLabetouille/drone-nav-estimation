@@ -1,0 +1,86 @@
+{
+  "generated_utc": "2026-10-02T10:02:37Z",
+  "script": "scripts/step1_altitude.py",
+  "code_fingerprint": "d1e7120f5616c339c7f6fe81b8096de8f54ca9650f86de06a5c2899f7d14536c",
+  "files": {
+    "scripts/step1_altitude.py": "cec366cf9682e99a6e7d680385a701078a2ef42064410cc30ff8a61e68f22d85",
+    "src/navsim/__init__.py": "1ef54889932f5a1d5c3eae5402e991d560dd0dcf0956375745a5dec6e3ce6f68",
+    "src/navsim/kf_altitude.py": "b1119bb751ba37671ae052a19b68fdc4549be6a9fddf09d76aead5fc651df251",
+    "src/navsim/provenance.py": "68d1c2e8d87e9a9e50b39f7254018f8e9872032c5f4fc3aed1f4113528331373",
+    "src/navsim/runner.py": "d8b3d1317cd38e00e27ae3934bc468c54dae5828c29ff5e7053a7ba0b45a7e9e",
+    "src/navsim/sensors.py": "be6011fa82976fb466f90bd17eaa38ffa444e52cb2cbdf5bc23a40af9e6eb211",
+    "src/navsim/trajectory.py": "43f6df8e280ddd827a44a81ad9d3d55bae258e2abc10539fd583ec140438d563"
+  },
+  "git": {
+    "commit": null,
+    "dirty": null
+  },
+  "seed": 2026,
+  "runs": 50,
+  "params": {
+    "accel": {
+      "bias_rw": 0.0005,
+      "bias_sigma0": 0.05,
+      "noise_density": 0.02,
+      "rate_hz": 100.0
+    },
+    "baro": {
+      "drift_sigma": 1.5,
+      "drift_tau": 120.0,
+      "noise_sigma": 0.4,
+      "rate_hz": 25.0
+    },
+    "nis_window_s": 10.0,
+    "scenarios": {
+      "A": {
+        "baro_model": {
+          "drift_sigma": 0.0,
+          "drift_tau": 120.0,
+          "noise_sigma": 0.4,
+          "rate_hz": 25.0
+        },
+        "baro_truth": {
+          "drift_sigma": 0.0,
+          "drift_tau": 120.0,
+          "noise_sigma": 0.4,
+          "rate_hz": 25.0
+        }
+      },
+      "B": {
+        "baro_model": {
+          "drift_sigma": 0.0,
+          "drift_tau": 120.0,
+          "noise_sigma": 0.4,
+          "rate_hz": 25.0
+        },
+        "baro_truth": {
+          "drift_sigma": 1.5,
+          "drift_tau": 120.0,
+          "noise_sigma": 0.4,
+          "rate_hz": 25.0
+        }
+      },
+      "C": {
+        "baro_model": {
+          "drift_sigma": 1.5,
+          "drift_tau": 120.0,
+          "noise_sigma": 0.4,
+          "rate_hz": 25.0
+        },
+        "baro_truth": {
+          "drift_sigma": 1.5,
+          "drift_tau": 120.0,
+          "noise_sigma": 0.4,
+          "rate_hz": 25.0
+        }
+      }
+    }
+  },
+  "params_sha256": "04b2e7e383cfc87177640c1446d3127011a0be3403f25c5b324d18a130c834d4",
+  "versions": {
+    "python": "3.13.15",
+    "numpy": "2.5.3",
+    "scipy": "1.18.1",
+    "matplotlib": "3.11.2"
+  }
+}

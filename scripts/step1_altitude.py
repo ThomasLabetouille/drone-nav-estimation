@@ -23,6 +23,7 @@ from scipy.stats import chi2
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from navsim import provenance  # noqa: E402
 from navsim.runner import dead_reckoning, simulate_and_run  # noqa: E402
 from navsim.sensors import AccelConfig, BaroConfig  # noqa: E402
 from navsim.trajectory import fixed_wing_vertical_profile  # noqa: E402
@@ -315,6 +316,15 @@ def main():
         f"{A['dr_60']:.0f} m à 60 s et {A['dr_end']:.0f} m à {t[-1]:.0f} s.",
         "",
     ]
+    prov = provenance.build(
+        __file__,
+        params={"accel": ACCEL, "baro": BARO,
+                "scenarios": {k: {"baro_truth": v[0], "baro_model": v[1]} for k, v in SCENARIOS.items()},
+                "nis_window_s": 10.0},
+        seed=args.seed, runs=args.runs,
+    )
+    provenance.write(prov, ROOT / "docs" / "step1_provenance.json")
+    lines += provenance.markdown(prov)
     (ROOT / "docs" / "step1_results.md").write_text("\n".join(lines), encoding="utf-8")
     print("\n".join(lines))
 

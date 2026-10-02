@@ -16,3 +16,14 @@ Généré par `scripts/step1_altitude.py`, 50 runs Monte-Carlo par scénario, gr
 | Fenêtres de 10 s où le NIS dépasse son seuil à 97,5 % | 2.3% | 41.4% | 2.2% |
 
 Accéléromètre seul, intégré depuis l'état vrai : erreur moyenne de 76 m à 60 s et 1898 m à 300 s.
+
+## Provenance
+
+- Empreinte du code : `d1e7120f5616c339` (7 fichiers, calculée par le script au moment de l'écriture)
+- Commit git : non disponible
+- Graine : 2026, 50 runs
+- Paramètres : `04b2e7e383cfc871` (détail dans le fichier JSON voisin)
+- Python 3.13.15, numpy 2.5.3, scipy 1.18.1
+- Généré le 2026-10-02T10:02:37Z
+
+`python scripts/check_provenance.py` compare cette empreinte au code actuel.

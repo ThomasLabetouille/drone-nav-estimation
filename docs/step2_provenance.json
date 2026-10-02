@@ -1,0 +1,139 @@
+{
+  "generated_utc": "2026-10-02T10:03:23Z",
+  "script": "scripts/step2_strapdown.py",
+  "code_fingerprint": "085fc0f185972d66e23450a100bdabaa789fa5c69e28f7114f6fcd58fde9debc",
+  "files": {
+    "scripts/step2_strapdown.py": "4ee0102c426d470e0e225e576109526cf0edfbef77e677ed2d1e18c957566ade",
+    "src/navsim/__init__.py": "1ef54889932f5a1d5c3eae5402e991d560dd0dcf0956375745a5dec6e3ce6f68",
+    "src/navsim/imu.py": "a4aad57508642687b6a5e9c91f7b3b611bf42eddc3efbd32f6cb0769cb632549",
+    "src/navsim/provenance.py": "68d1c2e8d87e9a9e50b39f7254018f8e9872032c5f4fc3aed1f4113528331373",
+    "src/navsim/rotations.py": "9932765196b63afda5c41378f6f392b6ed89356e6abff94659cc3bcfac97dc9e",
+    "src/navsim/strapdown.py": "482e02e507ab5426f058623b8bb4f22b1ea19e40c9ba476da99da35f7e005e74",
+    "src/navsim/trajectory.py": "43f6df8e280ddd827a44a81ad9d3d55bae258e2abc10539fd583ec140438d563",
+    "src/navsim/trajectory3d.py": "24a6a800f8e25496380d24ba3719bdacd8b76273ff57ae57d503ee345658a039"
+  },
+  "git": {
+    "commit": null,
+    "dirty": null
+  },
+  "seed": 2026,
+  "runs": 500,
+  "params": {
+    "imu": {
+      "accel_bias0": 0.05,
+      "accel_bias_rw": 0.0005,
+      "accel_noise": 0.02,
+      "gyro_bias0": 0.00034906585039886593,
+      "gyro_bias_rw": 2e-05,
+      "gyro_noise": 0.00017453292519943296,
+      "rate_hz": 200.0
+    },
+    "imu_rate_hz": 200.0,
+    "mission": {
+      "airspeed": [
+        [
+          190,
+          200,
+          5
+        ],
+        [
+          240,
+          250,
+          -5
+        ]
+      ],
+      "airspeed0": 17.0,
+      "alpha_trim_deg": 3.0,
+      "altitude0": 50.0,
+      "bank_deg": [
+        [
+          70,
+          74,
+          25
+        ],
+        [
+          80,
+          84,
+          -25
+        ],
+        [
+          110,
+          114,
+          30
+        ],
+        [
+          150,
+          154,
+          -30
+        ],
+        [
+          270,
+          274,
+          -25
+        ],
+        [
+          282,
+          288,
+          50
+        ],
+        [
+          296,
+          300,
+          -25
+        ],
+        [
+          400,
+          404,
+          -30
+        ],
+        [
+          440,
+          444,
+          30
+        ]
+      ],
+      "duration": 480.0,
+      "gamma_deg": [
+        [
+          15,
+          20,
+          6
+        ],
+        [
+          55,
+          60,
+          -6
+        ],
+        [
+          330,
+          335,
+          -5
+        ],
+        [
+          385,
+          390,
+          5
+        ]
+      ],
+      "heading0_deg": 0.0
+    },
+    "oversample": 8,
+    "straight_level": {
+      "airspeed": [],
+      "airspeed0": 17.0,
+      "alpha_trim_deg": 3.0,
+      "altitude0": 120.0,
+      "bank_deg": [],
+      "duration": 120.0,
+      "gamma_deg": [],
+      "heading0_deg": 0.0
+    }
+  },
+  "params_sha256": "7b3fcc9bcc4abf4cd0863927f5743184a3f3ef0b0ef13ffa6038d494a04052dd",
+  "versions": {
+    "python": "3.13.15",
+    "numpy": "2.5.3",
+    "scipy": "1.18.1",
+    "matplotlib": "3.11.2"
+  }
+}
