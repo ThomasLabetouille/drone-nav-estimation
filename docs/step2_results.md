@@ -23,11 +23,11 @@ Avec 500 runs, un rapport entre 0.94 et 1.06 est compatible avec le budget (inte
 
 ## Provenance
 
-- Empreinte du code : `1ab896b627b90d37` (8 fichiers, calculée par le script au moment de l'écriture)
+- Empreinte du code : `8df24260f20150be` (8 fichiers, calculée par le script au moment de l'écriture)
 - Commit git : non disponible
 - Graine : 2026, 500 runs
-- Paramètres : `7b3fcc9bcc4abf4c` (détail dans le fichier JSON voisin)
+- Paramètres : `4c5138fd0885d5d6` (détail dans le fichier JSON voisin)
 - Python 3.13.15, numpy 2.5.3, scipy 1.18.1
-- Généré le 2026-10-02T10:24:38Z
+- Généré le 2026-10-02T15:38:25Z
 
 `python scripts/check_provenance.py` compare cette empreinte au code actuel.

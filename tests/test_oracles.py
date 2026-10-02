@@ -445,3 +445,24 @@ def test_latency_geometry(mode, expected):
                      np.random.default_rng(0), latency_mode=mode)
     north_err = log.out_err[0, -1, 0]  # truth minus estimate, at real time
     assert north_err == pytest.approx(expected, abs=0.05)
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_reset_jacobian_matches_rotation_composition(seed):
+    """After injecting dtheta_hat, the new attitude error is
+    log(exp(dtheta) exp(-dtheta_hat)) (global error, scipy composition).
+    Its numerical derivative at dtheta = dtheta_hat must equal G, up to
+    second-order terms in dtheta_hat."""
+    from navsim.eskf import reset_jacobian
+
+    dth_hat = np.random.default_rng(seed).normal(0.0, 0.03, 3)
+
+    def new_error(dth):
+        return (Rotation.from_rotvec(dth) * Rotation.from_rotvec(dth_hat).inv()).as_rotvec()
+
+    eps = 1e-7
+    J = np.column_stack([(new_error(dth_hat + e) - new_error(dth_hat - e)) / (2 * eps)
+                         for e in np.eye(3) * eps])
+    G = reset_jacobian(dth_hat)
+    first_order = np.abs(G - np.eye(3)).max()
+    assert np.abs(J - G).max() < 0.05 * first_order   # the wrong sign gives ~2x first_order

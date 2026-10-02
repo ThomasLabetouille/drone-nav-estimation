@@ -2,7 +2,7 @@
 
 Généré par `scripts/mutation_check.py`. Chaque ligne est un bug plausible introduit dans une copie du dépôt, puis la suite de tests est lancée sur cette copie (sans le test de provenance, qui détecterait trivialement toute modification).
 
-**23 mutations détectées sur 25.**
+**33 mutations détectées sur 34.**
 
 | | Fichier | Bug simulé | Résultat | Détecté par |
 |---|---|---|---|---|
@@ -10,7 +10,7 @@ Généré par `scripts/mutation_check.py`. Chaque ligne est un bug plausible int
 | M02 | `eskf.py` | signe du couplage attitude/biais gyro dans F | détecté | `tests/test_step3.py::test_transition_matrix_matches_nonlinear_propagation[30.0]` |
 | M03 | `eskf.py` | bruit de processus gyro en dt² au lieu de dt | détecté | `tests/test_oracles.py::test_propagated_covariance_matches_monte_carlo[noise_only]` |
 | M04 | `eskf.py` | correction d'attitude injectée dans le repère avion au lieu de NED | détecté | `tests/test_step3.py::test_filter_is_consistent_on_a_short_flight` |
-| M05 | `eskf.py` | signe de la jacobienne de réinitialisation | survit (attendu) | `` |
+| M05 | `eskf.py` | signe de la jacobienne de réinitialisation (convention d'erreur locale au lieu de globale) : bug réel du projet jusqu'à l'étape 5 | détecté | `tests/test_oracles.py::test_reset_jacobian_matches_rotation_composition[0]` |
 | M06 | `eskf.py` | forme de Joseph remplacée par la forme courte (I - KH) P | survit (attendu) | `` |
 | M07 | `eskf.py` | biais GNSS oublié dans le modèle de mesure | détecté | `tests/test_step4.py::test_gnss_bias_states_follow_gauss_markov` |
 | M08 | `strapdown.py` | signe de la correction de coning | détecté | `tests/test_step2.py::test_perfect_imu_reproduces_mission` |
@@ -31,13 +31,21 @@ Généré par `scripts/mutation_check.py`. Chaque ligne est un bug plausible int
 | M23 | `fusion.py` | signe du terme croisé de la covariance initiale (étape 4) | détecté | `tests/test_step4.py::test_initial_covariance_correlates_position_and_gnss_bias` |
 | M24 | `fusion.py` | décalage d'un échantillon IMU (5 ms) dans l'horizon retardé | détecté | `tests/test_step4.py::test_delayed_mode_without_latency_equals_plain_filter` |
 | M25 | `provenance.py` | fins de ligne non normalisées avant le hachage | détecté | `tests/test_provenance.py::test_fingerprint_ignores_line_endings` |
+| M26 | `eskf.py` | signe de la jacobienne magnétomètre / attitude | détecté | `tests/test_step5.py::test_measurement_jacobian_matches_numerical_derivative[0-mag]` |
+| M27 | `eskf.py` | signe du vent dans la mesure Pitot | détecté | `tests/test_step5.py::test_measurement_jacobian_matches_numerical_derivative[0-airspeed]` |
+| M28 | `eskf.py` | dérivée de 1/V oubliée dans la jacobienne du dérapage (erreur faite puis corrigée pendant l'écriture) | détecté | `tests/test_step5.py::test_measurement_jacobian_matches_numerical_derivative[0-sideslip]` |
+| M29 | `eskf.py` | altitude baro prise égale à +p_D au lieu de -p_D | détecté | `tests/test_step5.py::test_measurement_jacobian_matches_numerical_derivative[0-baro]` |
+| M30 | `fusion.py` | biais magnétomètre appris en ligne droite au lieu des virages | détecté | `tests/test_step5.py::test_gated_mag_bias_keeps_the_heading_consistent` |
+| M31 | `trajectory3d.py` | accélération du vent absente de la force spécifique | détecté | `tests/test_step5.py::test_changing_wind_is_in_the_specific_force` |
+| M32 | `aiding.py` | marche aléatoire du biais magnétomètre en mauvaise unité | détecté | `tests/test_step5.py::test_magnetometer_stream_statistics` |
+| M33 | `aiding.py` | signe du cap magnétique | détecté | `tests/test_step5.py::test_magnetometer_heading_recovers_the_true_heading` |
+| M34 | `fusion.py` | signe de la corrélation vent / cap dans la covariance initiale du vent | détecté | `tests/test_step5.py::test_initial_wind_covariance_matches_monte_carlo` |
 
 ## Mutations qui survivent, et pourquoi
 
-- **M05** (signe de la jacobienne de réinitialisation) : effet du second ordre : la correction d'attitude injectée fait quelques millièmes de radian, donc la réinitialisation modifie P de moins de 0,1 %.
 - **M06** (forme de Joseph remplacée par la forme courte (I - KH) P) : mutant équivalent : avec le gain optimal, les deux formes sont égales en arithmétique exacte. La forme de Joseph n'apporte que de la robustesse numérique.
 
 ## Provenance
 
-- Empreinte des sources et des tests : `a0abcd63c10ecad1` (22 fichiers)
+- Empreinte des sources et des tests : `fb4fe3ea3cf48e50` (24 fichiers)
 - Toute modification d'un module ou d'un test rend ce rapport périmé (`scripts/check_provenance.py`) : relancer le script.

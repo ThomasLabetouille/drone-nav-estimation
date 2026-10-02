@@ -1,19 +1,21 @@
 {
-  "generated_utc": "2026-10-02T13:51:29Z",
+  "generated_utc": "2026-10-02T16:45:10Z",
   "script": "scripts/step4_gnss.py",
-  "code_fingerprint": "8f628191505510b3f107bf80628782a9e3444c6dc195343963c9528f74ea0031",
+  "code_fingerprint": "fae41fbd8c09e34c654435898d22cf5ca37c9e208699f6ae71b5f2b0e2f09d7e",
   "files": {
     "scripts/step4_gnss.py": "fdbe542a4d24490119cd2eb640e55155e4ddbb67933c7e067e99b74dee579381",
     "src/navsim/__init__.py": "1ef54889932f5a1d5c3eae5402e991d560dd0dcf0956375745a5dec6e3ce6f68",
-    "src/navsim/eskf.py": "12fcab7ccba95b50c11b089f56a759d55346dc503839667490d77b900c9e3b8e",
-    "src/navsim/fusion.py": "9b87195bddbdf6148569b297bf8de403b37666445d164dbf31f7a42f20b49bc6",
+    "src/navsim/aiding.py": "14b214474d253c088f57a66e0a4e20838a4a2c4ee7f2e13629abb4a2bc430d59",
+    "src/navsim/eskf.py": "c874c622d5a9ea6ffe4d71497bcfde4b6077fe7d5779567c36f7decab898869c",
+    "src/navsim/fusion.py": "086f96419999005feb8eeca1cdc0e0d747acd6677628169a941ee2833762f9c9",
     "src/navsim/gnss.py": "a9b9238e280364c3fe36d5ed0ea579ce29e32fd6059d911c4a4479f8e253a50b",
     "src/navsim/imu.py": "a31846359a39abfece337975a57a68b8337c1f244672529dd9d3dd19de55a316",
     "src/navsim/provenance.py": "68d1c2e8d87e9a9e50b39f7254018f8e9872032c5f4fc3aed1f4113528331373",
     "src/navsim/rotations.py": "7cadb4f5bc37be56c2e151f4f1371aca54d4b12bfa970ae0395fd1910adc2967",
+    "src/navsim/sensors.py": "be6011fa82976fb466f90bd17eaa38ffa444e52cb2cbdf5bc23a40af9e6eb211",
     "src/navsim/strapdown.py": "f37d0fd8f25b5ebef4120c721ab6b1277e0172661dd942a40e19cc3ffa5a512f",
     "src/navsim/trajectory.py": "43f6df8e280ddd827a44a81ad9d3d55bae258e2abc10539fd583ec140438d563",
-    "src/navsim/trajectory3d.py": "24a6a800f8e25496380d24ba3719bdacd8b76273ff57ae57d503ee345658a039"
+    "src/navsim/trajectory3d.py": "396eb08d32257fa713e1fda427f8a0f7d895edd2ef7d24a7517ab650a61bc6c1"
   },
   "git": {
     "commit": null,
@@ -125,7 +127,8 @@
     },
     "init": {
       "tilt_sigma_deg": 2.0,
-      "yaw_sigma_deg": 5.0
+      "yaw_sigma_deg": 5.0,
+      "yaw_source": "perturbed"
     },
     "mission": {
       "airspeed": [
@@ -213,10 +216,14 @@
           5
         ]
       ],
-      "heading0_deg": 0.0
+      "heading0_deg": 0.0,
+      "wind_e": [],
+      "wind_e0": 0.0,
+      "wind_n": [],
+      "wind_n0": 0.0
     }
   },
-  "params_sha256": "8d7f815c02b740840546178df2be79438731e70f78bd511b2cdf2cd1b767fd6a",
+  "params_sha256": "fba752b9b96fefde389bf03cdec1ac482def889c8430a309a6d953095130324d",
   "versions": {
     "python": "3.13.15",
     "numpy": "2.5.3",

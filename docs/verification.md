@@ -2,11 +2,11 @@
 
 Une bonne partie du code de ce dépôt a été écrite avec un assistant IA (Claude), et les tests aussi. Un test écrit en même temps que le code qu'il vérifie risque de partager ses erreurs : la même convention de rotation, le même signe, la même compréhension fausse d'une densité de bruit. La vérification est donc organisée en couches, et chaque couche passe par un chemin différent de celui du code.
 
-`python -m pytest` lance tout sauf les tests de mutation (environ quatre minutes).
+`python -m pytest` lance tout sauf les tests de mutation (environ six minutes).
 
 ## 1. Tests de chaque étape
 
-`tests/test_step1.py` à `tests/test_step4.py`. Ils vérifient ce que chaque étape affirme : cohérence de la vérité terrain, consistance des filtres (NEES, NIS), effet de chaque correction du strapdown, observabilité du cap, comportement face à la latence.
+`tests/test_step1.py` à `tests/test_step5.py`. Ils vérifient ce que chaque étape affirme : cohérence de la vérité terrain, consistance des filtres (NEES, NIS), effet de chaque correction du strapdown, observabilité du cap, comportement face à la latence, estimation du vent et apport du baromètre (à tirages identiques, avec et sans).
 
 ## 2. Oracles indépendants
 
@@ -27,6 +27,10 @@ Une bonne partie du code de ce dépôt a été écrite avec un assistant IA (Cla
 | Générateur IMU en flux | sa propre spécification : écart-type par échantillon `N√dt`, biais initial, marche aléatoire `K√t` |
 | Unités physiques du bruit de processus | même vol propagé à 100 Hz et à 200 Hz : même covariance |
 | Gestion de la latence | géométrie déterministe : à 17 m/s avec 150 ms de retard ignoré, l'estimation doit être 2,55 m en arrière ; compensée ou à horizon retardé, à zéro |
+| Jacobiennes des mesures baro, magnétomètre, Pitot et dérapage (étape 5) | dérivée numérique de fonctions de mesure réécrites depuis leur définition physique avec scipy, autour d'états tirés au hasard ; le test capture le `H` et l'innovation que le filtre utilise vraiment |
+| Cap magnétique compensé en inclinaison | champ terrestre tourné par scipy pour 200 attitudes aléatoires |
+| Covariance initiale du vent (premier échantillon Pitot) | Monte-Carlo de 40 000 tirages de la relation non linéaire, termes croisés vent/cap/vitesse compris |
+| Générateurs magnétomètre et baro | leur spécification : biais initial, bruit, marche aléatoire, stationnarité de la dérive |
 
 ## 3. Propriétés
 
@@ -39,11 +43,12 @@ Ce test a trouvé un vrai défaut dès sa première exécution. Avec un écart-t
 Dans le même fichier. Ils n'ont pas besoin de réponse de référence, seulement d'une relation entre deux exécutions :
 
 - le même vol fait avec un cap initial de 0° puis de 90°, avec exactement les mêmes erreurs IMU, doit donner les mêmes erreurs de navigation tournées de 90°. Cela vérifie d'un coup les conventions de repère du générateur et du strapdown ;
-- doubler les biais doit doubler l'erreur qu'ils causent (régime linéaire).
+- doubler les biais doit doubler l'erreur qu'ils causent (régime linéaire) ;
+- dans un vent constant, l'avion vole la même trajectoire par rapport à l'air : attitude, vitesses angulaires et force spécifique identiques à celles du vol sans vent, position décalée de `w·t` (invariance galiléenne, `tests/test_step5.py`).
 
 ## 5. Tests de mutation
 
-`scripts/mutation_check.py` introduit 25 bugs plausibles, un par un, dans une copie du dépôt : un signe dans la matrice de transition, une correction d'attitude injectée dans le mauvais repère, une densité de bruit appliquée en `dt` au lieu de `√dt`, la gravité de signe inversé, un échantillon IMU de décalage... Il lance ensuite la suite de tests sur chaque copie. Une suite de tests qu'on n'a jamais vue échouer sur un bug connu ne prouve pas grand-chose ; c'est le test des tests. Le rapport est dans [`mutation_report.md`](mutation_report.md).
+`scripts/mutation_check.py` introduit 34 bugs plausibles, un par un, dans une copie du dépôt : un signe dans la matrice de transition, une correction d'attitude injectée dans le mauvais repère, une densité de bruit appliquée en `dt` au lieu de `√dt`, la gravité de signe inversé, un échantillon IMU de décalage... Il lance ensuite la suite de tests sur chaque copie. Une suite de tests qu'on n'a jamais vue échouer sur un bug connu ne prouve pas grand-chose ; c'est le test des tests. Le rapport est dans [`mutation_report.md`](mutation_report.md).
 
 La première exécution a montré deux faiblesses réelles :
 
@@ -52,10 +57,25 @@ La première exécution a montré deux faiblesses réelles :
 
 J'ai ajouté un test qui confronte le générateur à sa spécification, et une variante « bruit seul » de la comparaison covariance/Monte-Carlo. Les deux mutations sont maintenant détectées directement.
 
-Deux mutations survivent, et c'est attendu :
+Une mutation survit, et c'est attendu : **M06**, la forme de Joseph remplacée par la forme courte. C'est un mutant équivalent : avec le gain optimal, les deux formes sont égales en arithmétique exacte.
 
-- **M06, forme de Joseph remplacée par la forme courte :** c'est un mutant équivalent. Avec le gain optimal, les deux formes sont égales en arithmétique exacte.
-- **M05, signe de la jacobienne de réinitialisation :** c'est un effet du second ordre, inférieur aux tolérances.
+### M05 : la mutation qui avait raison
+
+M05 inverse le signe de la jacobienne de réinitialisation de l'EKF, la matrice qui fait tourner la covariance d'attitude quand on injecte la correction dans le quaternion. Jusqu'à l'étape 4, elle survivait, et je l'avais classée « attendue » : un effet du second ordre, sous les tolérances.
+
+À l'étape 5, un nouveau test l'a détectée : celui qui vérifie que le filtre devient trop confiant quand il apprend le biais du magnétomètre en ligne droite. Avec la mutation, le NEES d'attitude passait de 2,6 à 1,2. Une mutation qui rend le filtre plus cohérent est suspecte, donc j'ai dérivé la jacobienne numériquement avec scipy. C'était le code d'origine qui était faux, pas la mutation. J'avais pris `I − [δθ/2 ×]`, la formule d'une erreur d'attitude locale (`q_vrai = q ⊗ exp(δθ)`). Ce filtre utilise une erreur globale (`q_vrai = exp(δθ) ⊗ q`), et il faut alors `I + [δθ/2 ×]`. Écart à la dérivée numérique : 5·10⁻⁴ avec le bon signe, 5·10⁻² avec l'ancien.
+
+Aucun test ne le voyait, parce que l'effet est petit tant que les corrections d'attitude sont petites. Il devient visible quand le filtre accumule beaucoup de petites corrections sur une direction mal observée, ce qui est exactement le cas du cap en ligne droite. La correction a changé quelques résultats de l'étape 3 : le NEES d'attitude avant le premier virage passe de 1,45 à 1,20. Le README raconte l'écart que j'avais attribué à tort à la seule linéarisation.
+
+Trois leçons :
+
+- **une mutation classée « attendue » est une hypothèse, pas un fait** : celle-ci aurait dû être vérifiée par un oracle dès le début ;
+- **une formule courante dépend de ses conventions** : `I − [δθ/2 ×]` est juste pour une erreur locale, fausse pour l'erreur globale de ce filtre ;
+- **un test qui sait qu'un comportement est mauvais vaut autant qu'un test qui sait qu'il est bon** : c'est le test du défaut connu (E2b) qui a trouvé le bug.
+
+`tests/test_oracles.py::test_reset_jacobian_matches_rotation_composition` compare maintenant la jacobienne à la dérivée numérique de la composition exacte, et M05 est détectée.
+
+Les mutations M26 à M34 visent l'étape 5 : signes des jacobiennes magnétomètre, Pitot et baro, signe de la corrélation vent/cap, apprentissage du biais magnétomètre inversé (en ligne droite au lieu des virages), accélération du vent oubliée dans la force spécifique. M28 reproduit une erreur que j'ai réellement faite en écrivant la mesure de dérapage : la dérivée de `1/V` oubliée dans la jacobienne. Je l'avais trouvée avec une dérivée numérique ; la mutation vérifie que les tests la trouvent seuls.
 
 Le script s'arrête en erreur si une mutation survit sans être marquée comme attendue. En CI, il tourne chaque semaine et à la demande (environ 15 minutes).
 
@@ -73,7 +93,7 @@ La CI GitHub lance ruff, puis toute la suite avec la couverture de code, puis la
 
 ## Ce que ces tests ne couvrent pas
 
-- **Le monde réel.** La vérité terrain et le filtre partagent les mêmes hypothèses : Terre plate, pas de rotation terrestre, pas de vent, erreurs capteurs gaussiennes. Les tests vérifient que le code est cohérent avec ce modèle, pas que le modèle décrit un vrai drone. Seuls des logs de vol réels peuvent le dire (étape 7).
+- **Le monde réel.** La vérité terrain et le filtre partagent les mêmes hypothèses : Terre plate, pas de rotation terrestre, vent horizontal sans turbulence, erreurs capteurs gaussiennes, champ magnétique sans perturbation locale. Les tests vérifient que le code est cohérent avec ce modèle, pas que le modèle décrit un vrai drone. Seuls des logs de vol réels peuvent le dire (étape 7).
 - **Les tolérances.** Elles sont choisies à la main. Une tolérance trop large laisse passer un bug ; les tests de mutation sont là pour le mesurer, mais seulement sur les bugs qu'on a pensé à y mettre.
 - **Les tests statistiques.** Ils utilisent des graines fixes, donc ils sont reproductibles. Avec une autre graine, un test cohérent peut échouer rarement, par construction (un intervalle à 95 % est dépassé une fois sur vingt).
 - **La relecture.** Ces couches réduisent le risque qu'un bug passe, elles ne remplacent pas la relecture par quelqu'un qui comprend les équations.

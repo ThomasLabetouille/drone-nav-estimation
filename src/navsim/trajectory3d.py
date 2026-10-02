@@ -26,12 +26,13 @@ not the sensor's.
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, field
 
 import numpy as np
 from scipy.integrate import cumulative_simpson
 
-from .rotations import quat_from_euler
+from .rotations import quat_conj, quat_from_euler, quat_rotate
 from .trajectory import min_jerk_step
 
 G = 9.80665
@@ -48,6 +49,11 @@ class FlightPlan:
     bank_deg: tuple = ()
     gamma_deg: tuple = ()
     airspeed: tuple = ()
+    # Horizontal wind in NED (the direction it blows towards), and its changes
+    wind_n0: float = 0.0  # [m/s]
+    wind_e0: float = 0.0  # [m/s]
+    wind_n: tuple = ()
+    wind_e: tuple = ()
 
 
 # 8 minutes: climb, right turn, two loiter circles, speed dash, S-turns,
@@ -71,6 +77,13 @@ MISSION = FlightPlan(
 
 STRAIGHT_LEVEL = FlightPlan(duration=120.0, altitude0=120.0)
 
+# Same mission in a 5 m/s wind from the west, which veers to a 6 m/s
+# north-westerly between 300 and 360 s.
+MISSION_WIND = dataclasses.replace(
+    MISSION, wind_n0=0.0, wind_e0=5.0,
+    wind_n=((300, 360, -4.24),), wind_e=((300, 360, -0.76),),
+)
+
 
 @dataclass(frozen=True)
 class Trajectory3D:
@@ -85,6 +98,8 @@ class Trajectory3D:
     dtheta: np.ndarray   # (K-1,3) ideal delta-angle over [t_k, t_k+1]
     dvel: np.ndarray     # (K-1,3) ideal delta-velocity over [t_k, t_k+1]
     plan: FlightPlan = field(repr=False)
+    wind_n: np.ndarray | None = field(default=None, repr=False)    # (K,3) wind in NED
+    airspeed: np.ndarray | None = field(default=None, repr=False)  # (K,) true airspeed
 
     @property
     def dt(self) -> float:
@@ -144,10 +159,22 @@ def generate(plan: FlightPlan = MISSION, rate_hz: float = 200.0, oversample: int
 
     psi = np.radians(plan.heading0_deg) + cumulative_simpson(dpsi, x=tf, initial=0.0)
     cpsi, spsi = np.cos(psi), np.sin(psi)
+    # Air-relative velocity and acceleration (the turn is coordinated in the
+    # air mass, so the attitude follows the air-relative heading)...
     v_n = np.stack([V * np.cos(gamma) * cpsi, V * np.cos(gamma) * spsi, -V * np.sin(gamma)], axis=-1)
     a_n = np.stack([cpsi * a_h[:, 0] - spsi * a_h[:, 1],
                     spsi * a_h[:, 0] + cpsi * a_h[:, 1],
                     a_h[:, 2]], axis=-1)
+    # ...plus the wind, which adds to the ground velocity, and whose changes
+    # add an inertial acceleration that the accelerometer feels.
+    wn, dwn = _channel(tf, plan.wind_n0, plan.wind_n)
+    we, dwe = _channel(tf, plan.wind_e0, plan.wind_e)
+    wind = np.stack([wn, we, np.zeros_like(wn)], axis=-1)
+    dwind = np.stack([dwn, dwe, np.zeros_like(wn)], axis=-1)
+    v_n = v_n + wind
+    a_n = a_n + dwind
+    if np.any(dwind):
+        f_b = f_b + quat_rotate(quat_conj(quat_from_euler(phi, theta, psi)), dwind)
     p_n = np.array([0.0, 0.0, -plan.altitude0]) + cumulative_simpson(v_n, x=tf, axis=0, initial=0.0)
 
     int_omega = cumulative_simpson(omega_b, x=tf, axis=0, initial=0.0)
@@ -167,4 +194,6 @@ def generate(plan: FlightPlan = MISSION, rate_hz: float = 200.0, oversample: int
         dtheta=np.diff(int_omega[idx], axis=0),
         dvel=np.diff(int_f[idx], axis=0),
         plan=plan,
+        wind_n=wind[idx],
+        airspeed=V[idx],
     )

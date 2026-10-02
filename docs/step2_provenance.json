@@ -1,7 +1,7 @@
 {
-  "generated_utc": "2026-10-02T10:24:38Z",
+  "generated_utc": "2026-10-02T15:38:25Z",
   "script": "scripts/step2_strapdown.py",
-  "code_fingerprint": "1ab896b627b90d37ccd379c844c43b2740f3b010f56ea61e64211d3a2f53ca53",
+  "code_fingerprint": "8df24260f20150befbb44d3cf13534513c16388675977738afc5f4456fe442df",
   "files": {
     "scripts/step2_strapdown.py": "4ee0102c426d470e0e225e576109526cf0edfbef77e677ed2d1e18c957566ade",
     "src/navsim/__init__.py": "1ef54889932f5a1d5c3eae5402e991d560dd0dcf0956375745a5dec6e3ce6f68",
@@ -10,7 +10,7 @@
     "src/navsim/rotations.py": "7cadb4f5bc37be56c2e151f4f1371aca54d4b12bfa970ae0395fd1910adc2967",
     "src/navsim/strapdown.py": "f37d0fd8f25b5ebef4120c721ab6b1277e0172661dd942a40e19cc3ffa5a512f",
     "src/navsim/trajectory.py": "43f6df8e280ddd827a44a81ad9d3d55bae258e2abc10539fd583ec140438d563",
-    "src/navsim/trajectory3d.py": "24a6a800f8e25496380d24ba3719bdacd8b76273ff57ae57d503ee345658a039"
+    "src/navsim/trajectory3d.py": "396eb08d32257fa713e1fda427f8a0f7d895edd2ef7d24a7517ab650a61bc6c1"
   },
   "git": {
     "commit": null,
@@ -115,7 +115,11 @@
           5
         ]
       ],
-      "heading0_deg": 0.0
+      "heading0_deg": 0.0,
+      "wind_e": [],
+      "wind_e0": 0.0,
+      "wind_n": [],
+      "wind_n0": 0.0
     },
     "oversample": 8,
     "straight_level": {
@@ -126,10 +130,14 @@
       "bank_deg": [],
       "duration": 120.0,
       "gamma_deg": [],
-      "heading0_deg": 0.0
+      "heading0_deg": 0.0,
+      "wind_e": [],
+      "wind_e0": 0.0,
+      "wind_n": [],
+      "wind_n0": 0.0
     }
   },
-  "params_sha256": "7b3fcc9bcc4abf4cd0863927f5743184a3f3ef0b0ef13ffa6038d494a04052dd",
+  "params_sha256": "4c5138fd0885d5d6ca5816bad166606160f8d451d67d6c855c5c9166d449b2e4",
   "versions": {
     "python": "3.13.15",
     "numpy": "2.5.3",

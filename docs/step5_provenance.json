@@ -1,0 +1,397 @@
+{
+  "generated_utc": "2026-10-02T17:09:18Z",
+  "script": "scripts/step5_aiding.py",
+  "code_fingerprint": "4be25335bd5fa137bd6c5b69904fe3712d7bdc23a961ddf136a10ef7c1723727",
+  "files": {
+    "scripts/step5_aiding.py": "980628029b4771cc0cb45fb76a655baa17cdd8609dbfe869b54cf3e18fbff2d7",
+    "src/navsim/__init__.py": "1ef54889932f5a1d5c3eae5402e991d560dd0dcf0956375745a5dec6e3ce6f68",
+    "src/navsim/aiding.py": "14b214474d253c088f57a66e0a4e20838a4a2c4ee7f2e13629abb4a2bc430d59",
+    "src/navsim/eskf.py": "c874c622d5a9ea6ffe4d71497bcfde4b6077fe7d5779567c36f7decab898869c",
+    "src/navsim/fusion.py": "086f96419999005feb8eeca1cdc0e0d747acd6677628169a941ee2833762f9c9",
+    "src/navsim/gnss.py": "a9b9238e280364c3fe36d5ed0ea579ce29e32fd6059d911c4a4479f8e253a50b",
+    "src/navsim/imu.py": "a31846359a39abfece337975a57a68b8337c1f244672529dd9d3dd19de55a316",
+    "src/navsim/provenance.py": "68d1c2e8d87e9a9e50b39f7254018f8e9872032c5f4fc3aed1f4113528331373",
+    "src/navsim/rotations.py": "7cadb4f5bc37be56c2e151f4f1371aca54d4b12bfa970ae0395fd1910adc2967",
+    "src/navsim/sensors.py": "be6011fa82976fb466f90bd17eaa38ffa444e52cb2cbdf5bc23a40af9e6eb211",
+    "src/navsim/strapdown.py": "f37d0fd8f25b5ebef4120c721ab6b1277e0172661dd942a40e19cc3ffa5a512f",
+    "src/navsim/trajectory.py": "43f6df8e280ddd827a44a81ad9d3d55bae258e2abc10539fd583ec140438d563",
+    "src/navsim/trajectory3d.py": "396eb08d32257fa713e1fda427f8a0f7d895edd2ef7d24a7517ab650a61bc6c1"
+  },
+  "git": {
+    "commit": null,
+    "dirty": null
+  },
+  "seed": 2026,
+  "runs": 40,
+  "params": {
+    "cases": {
+      "E1": {
+        "aiding": null,
+        "init": {
+          "tilt_sigma_deg": 2.0,
+          "yaw_sigma_deg": 5.0,
+          "yaw_source": "gnss_course"
+        }
+      },
+      "E2": {
+        "aiding": {
+          "baro": null,
+          "mag": {
+            "bias0": 0.01,
+            "bias_rw": 1e-05,
+            "field_ned": [
+              0.22778243940599846,
+              0.00596469309312355,
+              0.411071262355516
+            ],
+            "learn_bias_min_rate_deg_s": 5.0,
+            "noise": 0.003,
+            "rate_hz": 50.0
+          },
+          "pitot": null,
+          "sideslip_sigma_deg": null,
+          "wind": null
+        },
+        "init": {
+          "tilt_sigma_deg": 2.0,
+          "yaw_sigma_deg": 15.0,
+          "yaw_source": "magnetometer"
+        }
+      },
+      "E2b": {
+        "aiding": {
+          "baro": null,
+          "mag": {
+            "bias0": 0.01,
+            "bias_rw": 1e-05,
+            "field_ned": [
+              0.22778243940599846,
+              0.00596469309312355,
+              0.411071262355516
+            ],
+            "learn_bias_min_rate_deg_s": null,
+            "noise": 0.003,
+            "rate_hz": 50.0
+          },
+          "pitot": null,
+          "sideslip_sigma_deg": null,
+          "wind": null
+        },
+        "init": {
+          "tilt_sigma_deg": 2.0,
+          "yaw_sigma_deg": 15.0,
+          "yaw_source": "magnetometer"
+        }
+      },
+      "E3": {
+        "aiding": {
+          "baro": {
+            "drift_sigma": 1.5,
+            "drift_tau": 120.0,
+            "noise_sigma": 0.4,
+            "rate_hz": 10.0
+          },
+          "mag": {
+            "bias0": 0.01,
+            "bias_rw": 1e-05,
+            "field_ned": [
+              0.22778243940599846,
+              0.00596469309312355,
+              0.411071262355516
+            ],
+            "learn_bias_min_rate_deg_s": 5.0,
+            "noise": 0.003,
+            "rate_hz": 50.0
+          },
+          "pitot": null,
+          "sideslip_sigma_deg": null,
+          "wind": null
+        },
+        "init": {
+          "tilt_sigma_deg": 2.0,
+          "yaw_sigma_deg": 15.0,
+          "yaw_source": "magnetometer"
+        }
+      },
+      "E4": {
+        "aiding": {
+          "baro": {
+            "drift_sigma": 1.5,
+            "drift_tau": 120.0,
+            "noise_sigma": 0.4,
+            "rate_hz": 10.0
+          },
+          "mag": {
+            "bias0": 0.01,
+            "bias_rw": 1e-05,
+            "field_ned": [
+              0.22778243940599846,
+              0.00596469309312355,
+              0.411071262355516
+            ],
+            "learn_bias_min_rate_deg_s": 5.0,
+            "noise": 0.003,
+            "rate_hz": 50.0
+          },
+          "pitot": {
+            "noise": 0.3,
+            "rate_hz": 10.0
+          },
+          "sideslip_sigma_deg": null,
+          "wind": {
+            "init_from_airspeed": true,
+            "rw": 0.1,
+            "sigma0": 5.0
+          }
+        },
+        "init": {
+          "tilt_sigma_deg": 2.0,
+          "yaw_sigma_deg": 15.0,
+          "yaw_source": "magnetometer"
+        }
+      },
+      "E5": {
+        "aiding": {
+          "baro": {
+            "drift_sigma": 1.5,
+            "drift_tau": 120.0,
+            "noise_sigma": 0.4,
+            "rate_hz": 10.0
+          },
+          "mag": {
+            "bias0": 0.01,
+            "bias_rw": 1e-05,
+            "field_ned": [
+              0.22778243940599846,
+              0.00596469309312355,
+              0.411071262355516
+            ],
+            "learn_bias_min_rate_deg_s": 5.0,
+            "noise": 0.003,
+            "rate_hz": 50.0
+          },
+          "pitot": {
+            "noise": 0.3,
+            "rate_hz": 10.0
+          },
+          "sideslip_sigma_deg": 6.0,
+          "wind": {
+            "init_from_airspeed": true,
+            "rw": 0.1,
+            "sigma0": 5.0
+          }
+        },
+        "init": {
+          "tilt_sigma_deg": 2.0,
+          "yaw_sigma_deg": 15.0,
+          "yaw_source": "magnetometer"
+        }
+      },
+      "E5a": {
+        "aiding": {
+          "baro": {
+            "drift_sigma": 1.5,
+            "drift_tau": 120.0,
+            "noise_sigma": 0.4,
+            "rate_hz": 10.0
+          },
+          "mag": {
+            "bias0": 0.01,
+            "bias_rw": 1e-05,
+            "field_ned": [
+              0.22778243940599846,
+              0.00596469309312355,
+              0.411071262355516
+            ],
+            "learn_bias_min_rate_deg_s": 5.0,
+            "noise": 0.003,
+            "rate_hz": 50.0
+          },
+          "pitot": {
+            "noise": 0.3,
+            "rate_hz": 10.0
+          },
+          "sideslip_sigma_deg": 2.0,
+          "wind": {
+            "init_from_airspeed": true,
+            "rw": 0.1,
+            "sigma0": 5.0
+          }
+        },
+        "init": {
+          "tilt_sigma_deg": 2.0,
+          "yaw_sigma_deg": 15.0,
+          "yaw_source": "magnetometer"
+        }
+      },
+      "E5i": {
+        "aiding": {
+          "baro": {
+            "drift_sigma": 1.5,
+            "drift_tau": 120.0,
+            "noise_sigma": 0.4,
+            "rate_hz": 10.0
+          },
+          "mag": {
+            "bias0": 0.01,
+            "bias_rw": 1e-05,
+            "field_ned": [
+              0.22778243940599846,
+              0.00596469309312355,
+              0.411071262355516
+            ],
+            "learn_bias_min_rate_deg_s": 5.0,
+            "noise": 0.003,
+            "rate_hz": 50.0
+          },
+          "pitot": {
+            "noise": 0.3,
+            "rate_hz": 10.0
+          },
+          "sideslip_sigma_deg": 6.0,
+          "wind": {
+            "init_from_airspeed": false,
+            "rw": 0.1,
+            "sigma0": 5.0
+          }
+        },
+        "init": {
+          "tilt_sigma_deg": 2.0,
+          "yaw_sigma_deg": 15.0,
+          "yaw_source": "magnetometer"
+        }
+      }
+    },
+    "gnss": {
+      "corr_sigma_h": 1.4,
+      "corr_sigma_v": 2.8,
+      "corr_tau": 60.0,
+      "latency_s": 0.15,
+      "pos_sigma_h": 0.5,
+      "pos_sigma_v": 1.0,
+      "rate_hz": 5.0,
+      "vel_sigma_h": 0.1,
+      "vel_sigma_v": 0.2
+    },
+    "imu": {
+      "accel_bias0": 0.05,
+      "accel_bias_rw": 0.0005,
+      "accel_noise": 0.02,
+      "gyro_bias0": 0.00034906585039886593,
+      "gyro_bias_rw": 2e-05,
+      "gyro_noise": 0.00017453292519943296,
+      "rate_hz": 200.0
+    },
+    "mission": {
+      "airspeed": [
+        [
+          190,
+          200,
+          5
+        ],
+        [
+          240,
+          250,
+          -5
+        ]
+      ],
+      "airspeed0": 17.0,
+      "alpha_trim_deg": 3.0,
+      "altitude0": 50.0,
+      "bank_deg": [
+        [
+          70,
+          74,
+          25
+        ],
+        [
+          80,
+          84,
+          -25
+        ],
+        [
+          110,
+          114,
+          30
+        ],
+        [
+          150,
+          154,
+          -30
+        ],
+        [
+          270,
+          274,
+          -25
+        ],
+        [
+          282,
+          288,
+          50
+        ],
+        [
+          296,
+          300,
+          -25
+        ],
+        [
+          400,
+          404,
+          -30
+        ],
+        [
+          440,
+          444,
+          30
+        ]
+      ],
+      "duration": 480.0,
+      "gamma_deg": [
+        [
+          15,
+          20,
+          6
+        ],
+        [
+          55,
+          60,
+          -6
+        ],
+        [
+          330,
+          335,
+          -5
+        ],
+        [
+          385,
+          390,
+          5
+        ]
+      ],
+      "heading0_deg": 0.0,
+      "wind_e": [
+        [
+          300,
+          360,
+          -0.76
+        ]
+      ],
+      "wind_e0": 5.0,
+      "wind_n": [
+        [
+          300,
+          360,
+          -4.24
+        ]
+      ],
+      "wind_n0": 0.0
+    }
+  },
+  "params_sha256": "816840ae16ec651a8ddf314fa31fdf0b4078bb57643fc93e94227e7d19a3867e",
+  "versions": {
+    "python": "3.13.15",
+    "numpy": "2.5.3",
+    "scipy": "1.18.1",
+    "matplotlib": "3.11.2"
+  }
+}
