@@ -66,3 +66,34 @@ def simulate(dtheta: np.ndarray, dvel: np.ndarray, cfg: IMUConfig, rng, runs: in
         gyro_bias=bg,
         accel_bias=ba,
     )
+
+
+class IMUStream:
+    """Same error model as `simulate`, produced one sample at a time for a
+    batch of runs. Used by long Monte-Carlo loops where storing every
+    corrupted sample of every run would not fit in memory."""
+
+    def __init__(self, cfg: IMUConfig, rng, runs: int, dt: float | None = None):
+        self.cfg = cfg
+        self.rng = rng
+        self.runs = runs
+        self.dt = dt if dt is not None else 1.0 / cfg.rate_hz
+        self.gyro_bias = rng.normal(0.0, cfg.gyro_bias0, (runs, 3))
+        self.accel_bias = rng.normal(0.0, cfg.accel_bias0, (runs, 3))
+
+    def sample(self, dtheta: np.ndarray, dvel: np.ndarray):
+        """Corrupt one ideal increment pair (3,) -> two (runs, 3) arrays, then
+        advance the bias random walks."""
+        c, dt, rng, shape = self.cfg, self.dt, self.rng, (self.runs, 3)
+        sq = np.sqrt(dt)
+        dth = dtheta + self.gyro_bias * dt
+        dv = dvel + self.accel_bias * dt
+        if c.gyro_noise:
+            dth = dth + rng.normal(0.0, c.gyro_noise * sq, shape)
+        if c.accel_noise:
+            dv = dv + rng.normal(0.0, c.accel_noise * sq, shape)
+        if c.gyro_bias_rw:
+            self.gyro_bias = self.gyro_bias + rng.normal(0.0, c.gyro_bias_rw * sq, shape)
+        if c.accel_bias_rw:
+            self.accel_bias = self.accel_bias + rng.normal(0.0, c.accel_bias_rw * sq, shape)
+        return dth, dv

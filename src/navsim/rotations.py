@@ -87,3 +87,24 @@ def attitude_error(q_true: np.ndarray, q_est: np.ndarray) -> np.ndarray:
     q_est = exp(err) * q_true. Its x/y components are the tilt errors, z the
     heading error."""
     return rotvec_from_quat(quat_mul(q_est, quat_conj(q_true)))
+
+
+def dcm_from_quat(q: np.ndarray) -> np.ndarray:
+    """Rotation matrix C_nb (body to nav) from q_nb, shape (..., 3, 3)."""
+    w, x, y, z = np.moveaxis(q, -1, 0)
+    return np.stack([
+        np.stack([1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)], axis=-1),
+        np.stack([2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)], axis=-1),
+        np.stack([2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)], axis=-1),
+    ], axis=-2)
+
+
+def skew(v: np.ndarray) -> np.ndarray:
+    """Cross-product matrix [v x], shape (..., 3, 3)."""
+    x, y, z = np.moveaxis(v, -1, 0)
+    o = np.zeros_like(x)
+    return np.stack([
+        np.stack([o, -z, y], axis=-1),
+        np.stack([z, o, -x], axis=-1),
+        np.stack([-y, x, o], axis=-1),
+    ], axis=-2)

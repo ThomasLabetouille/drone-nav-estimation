@@ -4,10 +4,11 @@
 
 Simulation de capteurs et estimation d'état pour un drone à voilure fixe, en Python, avec un portage C++ prévu une fois les algorithmes validés.
 
-Le projet avance par étapes. Chacune ajoute des capteurs ou des états au filtre et se valide avant de passer à la suivante. Deux étapes sont faites :
+Le projet avance par étapes. Chacune ajoute des capteurs ou des états au filtre et se valide avant de passer à la suivante. Trois étapes sont faites :
 
 1. la voie verticale : un filtre de Kalman qui fusionne un accéléromètre et un baromètre ;
-2. la navigation inertielle en 3D : trajectoire de voilure fixe, IMU 6 axes, intégration strapdown, et l'erreur d'une IMU MEMS seule comparée à son budget analytique.
+2. la navigation inertielle en 3D : trajectoire de voilure fixe, IMU 6 axes, intégration strapdown, et l'erreur d'une IMU MEMS seule comparée à son budget analytique ;
+3. un EKF à état d'erreur à 15 états qui fusionne l'IMU et le GNSS, avec ce qu'il apprend à chaque manœuvre et ce qu'il ne peut pas apprendre en ligne droite.
 
 ![Estimation d'altitude sur une mission complète](docs/img/step1_estimation.png)
 
@@ -15,9 +16,10 @@ Le projet avance par étapes. Chacune ajoute des capteurs ou des états au filtr
 
 ```bash
 pip install -e ".[dev]"
-python -m pytest                       # environ une minute
+python -m pytest                       # environ une minute et demie
 python scripts/step1_altitude.py       # étape 1, ~45 s
 python scripts/step2_strapdown.py      # étape 2, ~50 s
+python scripts/step3_eskf.py           # étape 3, ~2 min 30
 python scripts/step2_strapdown.py --runs 100   # plus rapide, moins de Monte-Carlo
 python scripts/check_provenance.py     # les résultats de docs/ correspondent-ils au code actuel ?
 ```
@@ -147,6 +149,104 @@ Le cap a un statut à part. Un biais sur le gyro de lacet fait dériver le cap, 
 
 Dans le test du virage stabilisé, j'attendais une force latérale nulle, puisque le virage est coordonné. Le test a mesuré 6,7 mm/s². La loi `dψ/dt = g tan φ / V` suppose une portance perpendiculaire à la trajectoire, mais avec 3° d'assiette l'axe latéral de l'avion n'est plus exactement horizontal. Il reste alors `g sin φ (1 − cos θ)`, soit 6,7 mm/s² à 30° d'inclinaison. C'est sans conséquence, parce que la vérité et l'IMU restent exactement cohérentes entre elles. Le test vérifie maintenant cette valeur exacte au lieu de zéro.
 
+## Étape 3 : EKF à état d'erreur, IMU + GNSS
+
+![Ce que le filtre apprend, et quand](docs/img/step3_observability.png)
+
+### Filtre
+
+L'état nominal (position, vitesse, quaternion d'attitude, biais gyro, biais accéléro) est propagé par le strapdown de l'étape 2, avec des incréments corrigés des biais estimés. Le filtre estime l'erreur de cet état nominal, définie comme vérité moins nominal, sur 15 états :
+
+```
+δx = [δp, δv, δθ, δb_g, δb_a]          q_vrai = exp(δθ) ⊗ q_nominal,  δθ en NED
+
+d(δp)/dt = δv
+d(δv)/dt = −[f_n ×] δθ − C δb_a + C n_a
+d(δθ)/dt = −C δb_g + C n_g
+d(δb)/dt = marche aléatoire
+```
+
+Le terme `−[f_n ×] δθ` rend l'attitude observable à partir de la position et de la vitesse : une erreur d'attitude fait projeter une partie de la force spécifique sur le mauvais axe. En vol rectiligne non accéléré, `f_n` est verticale, et une erreur de cap (une rotation autour de la verticale) ne produit rien. C'est le constat de l'étape 2, retrouvé ici dans la covariance.
+
+- La matrice de transition est développée à l'ordre 2, `Φ = I + F dt + (F dt)²/2`, et écrite bloc par bloc parce que `F` est creuse.
+- Le bruit de processus discret est constant et diagonal : `C (N² I) Cᵀ = N² I`, puisque `C` est une rotation.
+- La mise à jour GNSS (position et vitesse) se fait en forme de Joseph.
+- L'erreur estimée est ensuite injectée dans l'état nominal, puis remise à zéro, avec la jacobienne de réinitialisation `I − [δθ/2 ×]` sur le bloc d'attitude.
+- Tout est vectorisé sur les runs : un Monte-Carlo de 100 filtres tourne en une seule passe.
+
+Le GNSS fournit position et vitesse à 5 Hz (σ = 1,5 m à l'horizontale, 3 m en vertical, 0,1 m/s), sans latence et avec des erreurs blanches. L'initialisation se fait en vol, sur le premier point GNSS. Le roulis et le tangage sont connus à 2° près (nivellement sur l'accéléromètre), le cap à 5° près (route GNSS, sans vent).
+
+Le code est dans `src/navsim/eskf.py`, `src/navsim/fusion.py` et `src/navsim/gnss.py`.
+
+Un test vérifie `F` directement. Il perturbe l'état vrai d'une petite erreur sur les 15 états, propage la vérité et l'état nominal dans le strapdown non linéaire pendant 0,2 s, et compare l'erreur obtenue au produit des `Φ` du filtre. Il le fait une fois en ligne droite et une fois en virage, et l'écart doit rester sous 5 %. Un signe faux dans un bloc le fait échouer immédiatement.
+
+### Résultats (100 runs, mission de l'étape 2)
+
+| Après convergence (t > 120 s) | Nord | Est | Bas |
+|---|---|---|---|
+| Position, RMS [m] | 0,17 | 0,17 | 0,34 |
+| Vitesse, RMS [m/s] | 0,034 | 0,034 | 0,044 |
+
+L'inclinaison est connue à 0,064° RMS et le cap à 0,43° RMS.
+
+La précision en position est optimiste. Les erreurs GNSS simulées sont blanches, donc le filtre peut les moyenner à volonté. Les erreurs d'un vrai récepteur sont corrélées sur des dizaines de secondes, et ce moyennage ne marche plus. Elles arrivent avec la latence, dans une étape suivante.
+
+### Ce que le filtre apprend, et quand
+
+Les zones grises de la figure du haut sont les virages. Le premier commence à 71 s.
+
+| Incertitude moyenne (1σ) | Avant le premier virage (65 s) | Après (90 s) |
+|---|---|---|
+| Cap | 4,0° | 0,29° |
+| Inclinaison | 0,29° | 0,063° |
+| Biais accéléro x (avant) | 0,039 m/s² | 0,008 m/s² |
+| Biais accéléro z | 0,006 m/s² | 0,0035 m/s² |
+
+- **Cap :** il reste à 4° tant que l'avion va tout droit, puis tombe à 0,3° dès le premier virage. Il remonte ensuite à chaque ligne droite (jusqu'à 1° avant la dernière boucle), parce que le biais du gyro de lacet est lui-même mal connu.
+- **Inclinaison et biais accéléro horizontal :** en vol stabilisé, une erreur d'inclinaison δ et un biais horizontal `b` produisent la même erreur d'accélération (`g·δ` contre `b`). Le filtre ne voit que leur somme. L'inclinaison plafonne donc à 0,29° et le biais reste presque à sa valeur initiale. Le virage change l'orientation de la force spécifique par rapport à l'avion, ce qui sépare les deux.
+- **Biais accéléro vertical :** il est appris en une vingtaine de secondes, puisque la verticale est mesurée directement.
+
+![Biais gyro](docs/img/step3_gyro_bias.png)
+
+Le biais du gyro de lacet ne bouge pas avant les virages. Il passe de 0,020 à 0,007 °/s pendant les deux boucles, puis se dégrade à nouveau en ligne droite, sous l'effet de sa marche aléatoire.
+
+![Un vol](docs/img/step3_single_run.png)
+
+### Cohérence
+
+| Bloc | NEES ou NIS moyen / ddl (attendu : 1) | Temps dans l'intervalle à 95 % |
+|---|---|---|
+| Position | 1,00 | 98 % |
+| Vitesse | 1,01 | 94 % |
+| Attitude | 1,05 | 81 % |
+| Biais gyro | 1,02 | 86 % |
+| Biais accéléro | 1,04 | 96 % |
+| NIS GNSS | 1,00 | 95 % |
+
+![Cohérence](docs/img/step3_consistency.png)
+
+- **Position, vitesse et NIS** sont cohérents.
+- **Biais :** leur moyenne est bonne, mais leur temps dans l'intervalle varie d'une graine à l'autre. Avec deux autres graines, j'obtiens 91 et 92 % pour les biais gyro, 90 et 94 % pour les biais accéléro. Une erreur de biais évolue lentement, donc la moyenne sur 100 runs fait de longues excursions au lieu de fluctuer autour de 1. La fraction de temps hors de la bande est alors beaucoup plus dispersée que pour la position, qui se décorrèle en quelques secondes.
+- **Attitude :** le défaut est réel et localisé. Il fait l'objet de la section suivante.
+
+### Écarts rencontrés
+
+Avant le premier virage, le NEES d'attitude vaut 1,45 : le filtre est trop sûr de lui. Après 100 s, il revient à 1. Mon hypothèse était la linéarisation. Avec 5° d'erreur de cap, les termes du second ordre que l'EKF néglige (le produit de l'erreur de cap par l'erreur d'inclinaison dans `f × δθ`) sont du même ordre que ce que le filtre estime en ligne droite. Pour le vérifier, j'ai relancé le même vol en ne changeant que l'erreur de cap initiale :
+
+| σ du cap initial | NEES d'attitude / ddl, de 5 s au premier virage | Après 100 s |
+|---|---|---|
+| 5° | 1,45 | 0,98 |
+| 2° | 1,12 | 1,02 |
+| 1° | 1,04 | 1,01 |
+
+L'excès disparaît quand l'erreur initiale diminue, ce qui confirme l'hypothèse. Trois remèdes sont possibles et aucun n'est encore implémenté :
+
+- un meilleur cap initial (magnétomètre, étape 5) ;
+- gonfler la covariance d'attitude jusqu'au premier virage ;
+- une mise à jour itérée ou sans parfum (UKF).
+
+Le script `step3_eskf.py` refait cette comparaison à chaque exécution.
+
 ## Provenance des résultats
 
 Chaque `docs/stepN_results.md` se termine par une section « Provenance », complétée par un fichier JSON voisin. Le script calcule lui-même, au moment d'écrire ses résultats, une empreinte SHA-256 des modules qu'il a réellement importés et de son propre code. Il enregistre aussi les paramètres, la graine, les versions des bibliothèques et le commit git quand il est disponible. Les fins de ligne sont normalisées avant le hachage, donc un clone Windows et un clone Linux du même commit donnent la même empreinte.
@@ -165,14 +265,19 @@ src/navsim/
   trajectory3d.py     étape 2 : trajectoire 3D et incréments IMU idéaux
   imu.py              étape 2 : modèle d'erreur IMU 6 axes
   strapdown.py        étape 2 : intégration strapdown, budget d'erreur analytique
+  gnss.py             étape 3 : récepteur GNSS, position et vitesse
+  eskf.py             étape 3 : EKF à état d'erreur, 15 états
+  fusion.py           étape 3 : boucle IMU + GNSS en Monte-Carlo, NEES par bloc, NIS
   provenance.py       empreinte du code et des paramètres de chaque résultat
 scripts/
   step1_altitude.py   figures et tableau de l'étape 1
   step2_strapdown.py  figures et tableau de l'étape 2
+  step3_eskf.py       figures et tableau de l'étape 3
   check_provenance.py vérifie que les résultats de docs/ correspondent au code
 tests/
   test_step1.py       vérité cohérente, Van Loan, covariance définie positive, cohérence NEES
   test_step2.py       conventions, cohérence IMU/vérité, strapdown, Monte-Carlo contre budget
+  test_step3.py       jacobienne F contre propagation non linéaire, cohérence, observabilité du cap
   test_provenance.py  empreinte stable, résultats à jour
 docs/
   stepN_results.md    tableaux générés par les scripts, avec leur provenance
@@ -182,8 +287,7 @@ docs/
 
 ## Suite
 
-3. EKF à état d'erreur à 15 états (position, vitesse, attitude en quaternion, biais gyro, biais accéléro) avec le GNSS.
-4. GNSS retardé (100 à 200 ms) fusionné à l'horizon retardé avec un buffer d'état.
+4. GNSS réaliste : erreurs corrélées dans le temps, latence de 100 à 200 ms fusionnée à l'horizon retardé avec un buffer d'état.
 5. Baro, magnétomètre, Pitot et estimation du vent.
 6. Modes dégradés : perte GNSS, perturbation magnétique, vibrations. Gating des innovations et détection de capteur défaillant.
 7. Rejeu de logs de vol PX4 réels et comparaison avec l'EKF2 embarqué.

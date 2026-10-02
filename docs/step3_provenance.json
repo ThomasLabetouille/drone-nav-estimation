@@ -1,10 +1,13 @@
 {
-  "generated_utc": "2026-10-02T10:24:38Z",
-  "script": "scripts/step2_strapdown.py",
-  "code_fingerprint": "1ab896b627b90d37ccd379c844c43b2740f3b010f56ea61e64211d3a2f53ca53",
+  "generated_utc": "2026-10-02T10:31:54Z",
+  "script": "scripts/step3_eskf.py",
+  "code_fingerprint": "dbbc937379569962e4844aaa17186a8ec94e98a6ac584eccedf1be7c68d82278",
   "files": {
-    "scripts/step2_strapdown.py": "4ee0102c426d470e0e225e576109526cf0edfbef77e677ed2d1e18c957566ade",
+    "scripts/step3_eskf.py": "92ca53c7d80f10fcf975729d8b9360f9fe9aeb2fb1890457c46b625e0a398e62",
     "src/navsim/__init__.py": "1ef54889932f5a1d5c3eae5402e991d560dd0dcf0956375745a5dec6e3ce6f68",
+    "src/navsim/eskf.py": "20f42e91a4b14c46de863c011e586674eaaedaf97f7c6310fb6c01b3d96ab872",
+    "src/navsim/fusion.py": "27c0801de9dbf05f442c2bb2e859841061b54158cd094a2272d1b01612b19ec6",
+    "src/navsim/gnss.py": "ac9017e44774698a47b38ad194f4f306c3c7689b049dc5d2f57684153357dece",
     "src/navsim/imu.py": "a31846359a39abfece337975a57a68b8337c1f244672529dd9d3dd19de55a316",
     "src/navsim/provenance.py": "68d1c2e8d87e9a9e50b39f7254018f8e9872032c5f4fc3aed1f4113528331373",
     "src/navsim/rotations.py": "7cadb4f5bc37be56c2e151f4f1371aca54d4b12bfa970ae0395fd1910adc2967",
@@ -17,8 +20,15 @@
     "dirty": null
   },
   "seed": 2026,
-  "runs": 500,
+  "runs": 100,
   "params": {
+    "gnss": {
+      "pos_sigma_h": 1.5,
+      "pos_sigma_v": 3.0,
+      "rate_hz": 5.0,
+      "vel_sigma_h": 0.1,
+      "vel_sigma_v": 0.2
+    },
     "imu": {
       "accel_bias0": 0.05,
       "accel_bias_rw": 0.0005,
@@ -28,7 +38,10 @@
       "gyro_noise": 0.00017453292519943296,
       "rate_hz": 200.0
     },
-    "imu_rate_hz": 200.0,
+    "init": {
+      "tilt_sigma_deg": 2.0,
+      "yaw_sigma_deg": 5.0
+    },
     "mission": {
       "airspeed": [
         [
@@ -116,20 +129,9 @@
         ]
       ],
       "heading0_deg": 0.0
-    },
-    "oversample": 8,
-    "straight_level": {
-      "airspeed": [],
-      "airspeed0": 17.0,
-      "alpha_trim_deg": 3.0,
-      "altitude0": 120.0,
-      "bank_deg": [],
-      "duration": 120.0,
-      "gamma_deg": [],
-      "heading0_deg": 0.0
     }
   },
-  "params_sha256": "7b3fcc9bcc4abf4cd0863927f5743184a3f3ef0b0ef13ffa6038d494a04052dd",
+  "params_sha256": "5c3aa67a38e8dd5fdec6136e822fc7cce555cd371137876126e3e43b258202f4",
   "versions": {
     "python": "3.13.15",
     "numpy": "2.5.3",

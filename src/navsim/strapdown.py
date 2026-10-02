@@ -30,6 +30,23 @@ class NavSolution:
     q_nb: np.ndarray  # (..., K, 4)
 
 
+def step(p, v, q, dth, dv, prev_dth, prev_dv, dt, method: str = "full", first: bool = False):
+    """One strapdown update over [t_k, t_k+1]. All arrays may carry leading
+    batch dimensions. prev_dth / prev_dv are the previous increments, used by
+    the two-sample coning and sculling corrections (ignored when first=True)."""
+    rot = dth
+    dv_b = dv
+    if method in ("rotcomp", "full"):
+        dv_b = dv + 0.5 * np.cross(dth, dv)
+    if method == "full" and not first:
+        rot = dth + np.cross(prev_dth, dth) / 12.0
+        dv_b = dv_b + (np.cross(prev_dth, dv) + np.cross(prev_dv, dth)) / 12.0
+    v_new = v + quat_rotate(q, dv_b) + np.array([0.0, 0.0, G * dt])
+    p_new = p + 0.5 * (v + v_new) * dt
+    q_new = quat_normalize(quat_mul(q, quat_from_rotvec(rot)))
+    return p_new, v_new, q_new
+
+
 def integrate(p0, v0, q0, dtheta, dvel, dt, method: str = "full") -> NavSolution:
     """Integrate increments of shape (..., K-1, 3) from an initial state of
     shape (..., 3) / (..., 4). Leading dimensions are carried through, so a
@@ -44,25 +61,11 @@ def integrate(p0, v0, q0, dtheta, dvel, dt, method: str = "full") -> NavSolution
     p[..., 0, :] = p0
     v[..., 0, :] = v0
     q[..., 0, :] = q0
-    g_dt = np.array([0.0, 0.0, G * dt])
-
-    prev_dth = np.zeros(batch + (3,))
-    prev_dv = np.zeros(batch + (3,))
     for k in range(n):
-        dth = dtheta[..., k, :]
-        dv = dvel[..., k, :]
-        rot = dth
-        dv_b = dv
-        if method in ("rotcomp", "full"):
-            dv_b = dv + 0.5 * np.cross(dth, dv)
-        if method == "full" and k > 0:
-            rot = dth + np.cross(prev_dth, dth) / 12.0
-            dv_b = dv_b + (np.cross(prev_dth, dv) + np.cross(prev_dv, dth)) / 12.0
-        qk = q[..., k, :]
-        v[..., k + 1, :] = v[..., k, :] + quat_rotate(qk, dv_b) + g_dt
-        p[..., k + 1, :] = p[..., k, :] + 0.5 * (v[..., k, :] + v[..., k + 1, :]) * dt
-        q[..., k + 1, :] = quat_normalize(quat_mul(qk, quat_from_rotvec(rot)))
-        prev_dth, prev_dv = dth, dv
+        p[..., k + 1, :], v[..., k + 1, :], q[..., k + 1, :] = step(
+            p[..., k, :], v[..., k, :], q[..., k, :],
+            dtheta[..., k, :], dvel[..., k, :],
+            dtheta[..., k - 1, :], dvel[..., k - 1, :], dt, method, first=(k == 0))
     return NavSolution(p, v, q)
 
 
