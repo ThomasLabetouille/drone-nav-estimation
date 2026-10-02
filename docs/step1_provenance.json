@@ -1,11 +1,11 @@
 {
-  "generated_utc": "2026-10-02T10:02:37Z",
+  "generated_utc": "2026-10-02T13:43:36Z",
   "script": "scripts/step1_altitude.py",
-  "code_fingerprint": "d1e7120f5616c339c7f6fe81b8096de8f54ca9650f86de06a5c2899f7d14536c",
+  "code_fingerprint": "0dda166b9499980ff8ce325ebfad91cbebe407791bdd0dc404e000eab24670df",
   "files": {
     "scripts/step1_altitude.py": "cec366cf9682e99a6e7d680385a701078a2ef42064410cc30ff8a61e68f22d85",
     "src/navsim/__init__.py": "1ef54889932f5a1d5c3eae5402e991d560dd0dcf0956375745a5dec6e3ce6f68",
-    "src/navsim/kf_altitude.py": "b1119bb751ba37671ae052a19b68fdc4549be6a9fddf09d76aead5fc651df251",
+    "src/navsim/kf_altitude.py": "a3c577332792252ef97e3c0e8e500d9953215a955d82786a8fcd893502aa4f74",
     "src/navsim/provenance.py": "68d1c2e8d87e9a9e50b39f7254018f8e9872032c5f4fc3aed1f4113528331373",
     "src/navsim/runner.py": "d8b3d1317cd38e00e27ae3934bc468c54dae5828c29ff5e7053a7ba0b45a7e9e",
     "src/navsim/sensors.py": "be6011fa82976fb466f90bd17eaa38ffa444e52cb2cbdf5bc23a40af9e6eb211",

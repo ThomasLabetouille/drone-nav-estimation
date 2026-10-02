@@ -3,7 +3,7 @@ import pytest
 
 from navsim import imu, strapdown, trajectory3d
 from navsim.rotations import (attitude_error, euler_from_quat, quat_conj, quat_from_euler,
-                              quat_from_rotvec, quat_mul, quat_rotate, rotvec_from_quat)
+                              quat_from_rotvec, quat_rotate, rotvec_from_quat)
 
 G = trajectory3d.G
 

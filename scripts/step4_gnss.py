@@ -67,9 +67,13 @@ COLORS = {"A": C1, "B": C2, "C": C3, "L1": C2, "L2": C3, "L3": C1}
 
 
 def turn_intervals(tr, threshold_deg=2.0):
+    # Padding with "not turning" at both ends closes a turn that is still
+    # going on at the start or at the end of the flight (found by the linter:
+    # without it, an unmatched start was silently dropped by zip).
     turning = np.abs(np.degrees(tr.euler[:, 0])) > threshold_deg
-    edges = np.flatnonzero(np.diff(turning.astype(int)))
-    return [(tr.t[a + 1], tr.t[b + 1]) for a, b in zip(edges[::2], edges[1::2])]
+    edges = np.flatnonzero(np.diff(np.concatenate([[0], turning.astype(int), [0]])))
+    last = len(tr.t) - 1
+    return [(tr.t[a], tr.t[min(b, last)]) for a, b in zip(edges[::2], edges[1::2], strict=True)]
 
 
 def shade(ax, turns, label=False):
@@ -187,7 +191,7 @@ def main():
     tr = trajectory3d.generate(trajectory3d.MISSION)
     imu_cfg, init = imu.IMUConfig(), fusion.InitConfig()
     logs, stats = {}, {}
-    for key, (label, gcfg, model_bias, mode) in CASES.items():
+    for key, (_label, gcfg, model_bias, mode) in CASES.items():
         logs[key] = fusion.run(tr, imu_cfg, gcfg, init, args.runs, np.random.default_rng(args.seed),
                                model_gnss_bias=model_bias, latency_mode=mode)
         stats[key] = summary(logs[key])

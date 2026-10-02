@@ -74,6 +74,8 @@ class ErrorStateEKF:
         self.H = np.zeros((6, n))
         self.H[:, :6] = np.eye(6)
         if model_gnss_bias:
+            if min(gnss_cfg.corr_sigma_h, gnss_cfg.corr_sigma_v) <= 0.0:
+                raise ValueError("model_gnss_bias needs corr_sigma_h and corr_sigma_v > 0")
             phi = np.exp(-dt / gnss_cfg.corr_tau)
             self.gnss_phi = phi
             sig2 = np.array([gnss_cfg.corr_sigma_h, gnss_cfg.corr_sigma_h, gnss_cfg.corr_sigma_v]) ** 2

@@ -48,11 +48,13 @@ BLOCK_LABELS = {"position": "Position", "velocity": "Vitesse", "attitude": "Atti
 
 
 def turn_intervals(tr, threshold_deg=2.0):
+    # Padding with "not turning" at both ends closes a turn that is still
+    # going on at the start or at the end of the flight (found by the linter:
+    # without it, an unmatched start was silently dropped by zip).
     turning = np.abs(np.degrees(tr.euler[:, 0])) > threshold_deg
-    edges = np.flatnonzero(np.diff(turning.astype(int)))
-    starts = edges[::2] + 1
-    ends = edges[1::2] + 1
-    return [(tr.t[a], tr.t[b]) for a, b in zip(starts, ends)]
+    edges = np.flatnonzero(np.diff(np.concatenate([[0], turning.astype(int), [0]])))
+    last = len(tr.t) - 1
+    return [(tr.t[a], tr.t[min(b, last)]) for a, b in zip(edges[::2], edges[1::2], strict=True)]
 
 
 def shade_turns(ax, turns, label=False):
@@ -100,7 +102,7 @@ def fig_gyro_bias(tr, log, turns, path):
     s = log.sigma.mean(axis=0)
     fig, ax = plt.subplots(figsize=(10, 3.6))
     shade_turns(ax, turns, label=True)
-    for i, (name, c) in enumerate(zip(("x (roulis)", "y (tangage)", "z (lacet)"), AXIS_COLORS)):
+    for i, (name, c) in enumerate(zip(("x (roulis)", "y (tangage)", "z (lacet)"), AXIS_COLORS, strict=True)):
         ax.plot(t, s[:, 9 + i] * DEG, color=c, label=f"biais gyro {name}")
     ax.set_ylabel("1σ [°/s]")
     ax.set_xlabel("Temps [s]")
@@ -116,7 +118,7 @@ def fig_single_run(log, turns, path, r=0):
     t = log.t
     fig, axes = plt.subplots(4, 1, figsize=(11, 10), sharex=True)
     ax = axes[0]
-    for i, (name, c) in enumerate(zip("NED", AXIS_COLORS)):
+    for i, (name, c) in enumerate(zip("NED", AXIS_COLORS, strict=True)):
         ax.plot(t, log.err[r, :, i], color=c, lw=1.1, label=name)
     ax.set_ylabel("Erreur de position [m]")
     ax.set_title("Un vol : erreurs et estimations")
@@ -160,7 +162,7 @@ def fig_consistency(log, runs, path):
     fig, axes = plt.subplots(2, 3, figsize=(11, 6), sharex=True)
     panels = [(name, log.nees[name][:, 1:], DOF[name], BLOCK_LABELS[name]) for name in DOF]
     panels.append(("nis", log.nis[:, 1:], 6, "NIS GNSS"))
-    for ax, (name, values, dof, label) in zip(axes.flat, panels):
+    for ax, (_name, values, dof, label) in zip(axes.flat, panels, strict=True):
         mean = values.mean(axis=0) / dof
         lo, hi = chi2.ppf([0.025, 0.975], runs * dof) / (runs * dof)
         ax.axhspan(lo, hi, color=INK2, alpha=0.12, lw=0)
@@ -257,7 +259,7 @@ def main():
         "",
         "## Cohérence de l'attitude selon l'erreur de cap initiale",
         "",
-        f"| σ du cap initial | NEES attitude / ddl, de 5 s au premier virage | après 100 s |",
+        "| σ du cap initial | NEES attitude / ddl, de 5 s au premier virage | après 100 s |",
         "|---|---|---|",
         *rows_sens,
         "",

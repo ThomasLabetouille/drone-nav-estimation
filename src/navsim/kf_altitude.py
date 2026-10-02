@@ -51,12 +51,20 @@ def input_matrix(A: np.ndarray, B: np.ndarray, dt: float) -> np.ndarray:
     return expm(M * dt)[:n, n:]
 
 
+MIN_DRIFT_SIGMA = 1e-6  # [m]
+
+
 class AltitudeKF:
     def __init__(self, accel: AccelConfig, baro: BaroConfig, dt: float):
         """`accel` and `baro` describe what the filter *believes* about the
         sensors. If baro.drift_sigma > 0 the slow baro error is added to the
         state; otherwise the filter treats the baro as white noise only."""
         self.dt = dt
+        if 0.0 < baro.drift_sigma < MIN_DRIFT_SIGMA:
+            # Found by a property-based test: a drift std of, say, 1e-164 m
+            # turns on the 4th state but its variance underflows to zero and
+            # P becomes singular. Use 0 to switch the drift state off.
+            raise ValueError(f"baro drift_sigma must be 0 (no drift state) or >= {MIN_DRIFT_SIGMA} m")
         self.models_drift = baro.drift_sigma > 0
         n = 4 if self.models_drift else 3
         self.n = n

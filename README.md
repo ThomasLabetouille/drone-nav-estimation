@@ -17,13 +17,14 @@ Le projet avance par étapes. Chacune ajoute des capteurs ou des états au filtr
 
 ```bash
 pip install -e ".[dev]"
-python -m pytest                       # environ deux minutes
+python -m pytest                       # environ quatre minutes
 python scripts/step1_altitude.py       # étape 1, ~45 s
 python scripts/step2_strapdown.py      # étape 2, ~50 s
 python scripts/step3_eskf.py           # étape 3, ~2 min 30
 python scripts/step4_gnss.py           # étape 4, ~5 min
 python scripts/step2_strapdown.py --runs 100   # plus rapide, moins de Monte-Carlo
 python scripts/check_provenance.py     # les résultats de docs/ correspondent-ils au code actuel ?
+python scripts/mutation_check.py       # les tests détectent-ils des bugs connus ? ~15 min
 ```
 
 Les figures sont écrites dans `docs/img/`, les tableaux dans `docs/stepN_results.md`.
@@ -63,6 +64,7 @@ Le code est dans `src/navsim/kf_altitude.py`.
 
 ### Résultats (50 runs Monte-Carlo par scénario)
 
+<!-- source: docs/step1_results.md -->
 | | A | B | C |
 |---|---|---|---|
 | RMSE altitude, baro brut [m] | 0,40 | 1,46 | 1,46 |
@@ -109,11 +111,12 @@ Le code est dans `src/navsim/trajectory3d.py`, `src/navsim/rotations.py` (quater
 
 `src/navsim/strapdown.py` intègre les incréments selon trois variantes. Avec une IMU parfaite, l'erreur restante est celle de l'algorithme seul :
 
+<!-- source: docs/step2_results.md -->
 | Variante | Position après 8 min | Attitude, erreur max |
 |---|---|---|
 | naïve : `v += C(q) Δv` | 1,14 m | 5·10⁻⁵ ° |
 | + compensation de rotation `½ Δθ × Δv` | 0,29 m | 5·10⁻⁵ ° |
-| + corrections de coning et de sculling à deux échantillons | 8 mm | 3·10⁻⁸ ° |
+| + corrections de coning et de sculling à deux échantillons | 0,0084 m | 3·10⁻⁸ ° |
 
 ![Validation du strapdown](docs/img/step2_strapdown_validation.png)
 
@@ -184,6 +187,7 @@ Un test vérifie `F` directement. Il perturbe l'état vrai d'une petite erreur s
 
 ### Résultats (100 runs, mission de l'étape 2)
 
+<!-- source: docs/step3_results.md -->
 | Après convergence (t > 120 s) | Nord | Est | Bas |
 |---|---|---|---|
 | Position, RMS [m] | 0,17 | 0,17 | 0,34 |
@@ -197,6 +201,7 @@ La précision en position est optimiste. Les erreurs GNSS simulées sont blanche
 
 Les zones grises de la figure du haut sont les virages. Le premier commence à 71 s.
 
+<!-- source: docs/step3_results.md -->
 | Incertitude moyenne (1σ) | Avant le premier virage (65 s) | Après (90 s) |
 |---|---|---|
 | Cap | 4,0° | 0,29° |
@@ -216,6 +221,7 @@ Le biais du gyro de lacet ne bouge pas avant les virages. Il passe de 0,020 à 0
 
 ### Cohérence
 
+<!-- source: docs/step3_results.md -->
 | Bloc | NEES ou NIS moyen / ddl (attendu : 1) | Temps dans l'intervalle à 95 % |
 |---|---|---|
 | Position | 1,00 | 98 % |
@@ -235,6 +241,7 @@ Le biais du gyro de lacet ne bouge pas avant les virages. Il passe de 0,020 à 0
 
 Avant le premier virage, le NEES d'attitude vaut 1,45 : le filtre est trop sûr de lui. Après 100 s, il revient à 1. Mon hypothèse était la linéarisation. Avec 5° d'erreur de cap, les termes du second ordre que l'EKF néglige (le produit de l'erreur de cap par l'erreur d'inclinaison dans `f × δθ`) sont du même ordre que ce que le filtre estime en ligne droite. Pour le vérifier, j'ai relancé le même vol en ne changeant que l'erreur de cap initiale :
 
+<!-- source: docs/step3_results.md -->
 | σ du cap initial | NEES d'attitude / ddl, de 5 s au premier virage | Après 100 s |
 |---|---|---|
 | 5° | 1,45 | 0,98 |
@@ -264,6 +271,7 @@ Toutes les configurations tournent sur la même mission, avec 50 runs et la mêm
 
 ### Erreurs corrélées
 
+<!-- source: docs/step4_results.md -->
 | | Position horiz. | NEES position | NIS GNSS |
 |---|---|---|---|
 | A : erreurs blanches (étape 3) | 0,24 m | 1,02 | 1,00 |
@@ -280,6 +288,7 @@ Le NIS, seul test disponible en vol, dit même le contraire de la réalité : il
 
 ### Latence de 150 ms
 
+<!-- source: docs/step4_results.md -->
 | | Position horiz. | Cap | NEES attitude | NIS GNSS |
 |---|---|---|---|---|
 | latence ignorée | 2,97 m | 2,63° | 61 | 1,18 |
@@ -299,6 +308,23 @@ Le code est dans `src/navsim/fusion.py` (les trois stratégies), `src/navsim/esk
 ### Écarts rencontrés
 
 La généralisation du filtre (15 ou 18 états, matrice `H` explicite, boucle avec file d'échantillons IMU) touchait du code dont dépend l'étape 3. J'ai relancé l'étape 3 et comparé son tableau de résultats avec l'ancien, en ignorant la section provenance : aucun chiffre n'a changé. Un test vérifie aussi que le mode « horizon retardé » sans latence donne exactement le même filtre que le mode normal.
+
+## Vérification
+
+Une bonne partie du code et des tests de ce dépôt a été écrite avec un assistant IA. Un test écrit en même temps que le code risque de partager ses erreurs, donc la vérification passe aussi par d'autres chemins. Le détail est dans [`docs/verification.md`](docs/verification.md).
+
+- **Oracles indépendants** (`tests/test_oracles.py`). Le code est comparé à ce qu'il ne partage pas :
+  - scipy pour les rotations ;
+  - un solveur d'EDO pour la trajectoire et le strapdown ;
+  - les moindres carrés en bloc pour le Kalman linéaire ;
+  - une jacobienne numérique colonne par colonne pour la matrice de transition de l'EKF ;
+  - un Monte-Carlo pour la covariance propagée ;
+  - des formules fermées pour le budget d'erreur et la latence.
+- **Propriétés** (`tests/test_properties.py`, hypothesis). Des invariants sont tirés sur des centaines d'entrées aléatoires. Ce test a trouvé une covariance singulière dans le filtre de l'étape 1, pour une dérive baro positive mais minuscule.
+- **Tests métamorphiques.** Le même vol fait avec un cap initial tourné de 90° doit donner les mêmes erreurs, tournées de 90°.
+- **Tests de mutation** (`scripts/mutation_check.py`). Vingt-cinq bugs plausibles sont injectés un par un dans une copie du dépôt, et la suite de tests doit les détecter. La première exécution a révélé deux faiblesses, corrigées depuis. Le rapport est dans [`docs/mutation_report.md`](docs/mutation_report.md).
+- **Chiffres du README.** Chaque tableau de résultats de ce fichier est vérifié contre le fichier généré correspondant (`tests/test_docs.py`).
+- **CI.** ruff (règles orientées bugs), la suite complète avec la couverture de code, et la provenance à chaque push ; les mutations chaque semaine.
 
 ## Provenance des résultats
 
@@ -328,15 +354,21 @@ scripts/
   step3_eskf.py       figures et tableau de l'étape 3
   step4_gnss.py       figures et tableau de l'étape 4
   check_provenance.py vérifie que les résultats de docs/ correspondent au code
+  mutation_check.py   injecte des bugs connus et vérifie que les tests les détectent
 tests/
   test_step1.py       vérité cohérente, Van Loan, covariance définie positive, cohérence NEES
   test_step2.py       conventions, cohérence IMU/vérité, strapdown, Monte-Carlo contre budget
   test_step3.py       jacobienne F contre propagation non linéaire, cohérence, observabilité du cap
   test_step4.py       erreur GNSS corrélée, états de biais, horizon retardé contre latence ignorée
+  test_oracles.py     comparaisons à des références indépendantes (scipy, EDO, moindres carrés...)
+  test_properties.py  invariants (hypothesis) et tests métamorphiques
+  test_docs.py        chiffres du README contre les résultats générés
   test_provenance.py  empreinte stable, résultats à jour
 docs/
   stepN_results.md    tableaux générés par les scripts, avec leur provenance
   stepN_provenance.json
+  verification.md     stratégie de vérification
+  mutation_report.md  résultat des tests de mutation
   img/                figures
 ```
 

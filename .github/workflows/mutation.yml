@@ -1,0 +1,22 @@
+name: mutation
+
+# The full mutation run takes about 15 minutes, too long for every push.
+# It runs on demand (Actions tab, "Run workflow") and once a week. The report
+# committed in docs/ is still checked on every push: it must match the
+# current sources and tests (scripts/check_provenance.py).
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1"
+
+jobs:
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: python scripts/mutation_check.py --jobs 4
