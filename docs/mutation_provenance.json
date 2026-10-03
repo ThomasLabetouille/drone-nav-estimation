@@ -1,12 +1,13 @@
 {
   "script": "scripts/mutation_check.py",
-  "code_fingerprint": "fb4fe3ea3cf48e506c17eb7cd594309f8299167a6496ad6aa266bfbd782aabec",
+  "code_fingerprint": "5a2300792eabb998909086eba583107859e8be071d39f3889bafad9bd9cda79f",
   "files": {
-    "scripts/mutation_check.py": "9c897a9ca9eae345399b4b5eb419e6dad693af44891144f8887a4139ba12a358",
+    "scripts/mutation_check.py": "4e52921936f3b2912b18280b4f71da3494c1072270f09935beafb93bb7a40ebc",
     "src/navsim/__init__.py": "1ef54889932f5a1d5c3eae5402e991d560dd0dcf0956375745a5dec6e3ce6f68",
-    "src/navsim/aiding.py": "14b214474d253c088f57a66e0a4e20838a4a2c4ee7f2e13629abb4a2bc430d59",
-    "src/navsim/eskf.py": "c874c622d5a9ea6ffe4d71497bcfde4b6077fe7d5779567c36f7decab898869c",
-    "src/navsim/fusion.py": "086f96419999005feb8eeca1cdc0e0d747acd6677628169a941ee2833762f9c9",
+    "src/navsim/aiding.py": "e0a97a9ab36c8e92c3de1986fe702af22954ba2b9885f00fc245a11644d67a9a",
+    "src/navsim/eskf.py": "96b62c3119e17e592bb6cddef0eff30f0e1048cf7725db774c60731bccbd6583",
+    "src/navsim/faults.py": "57e69ea3b3950666e9c092cbf6a857db38711115f812960635ee8784a3850b29",
+    "src/navsim/fusion.py": "c272b6a4e5831089cc6923814f84c33de88c4e967bdc0aea30bf3593356e8693",
     "src/navsim/gnss.py": "a9b9238e280364c3fe36d5ed0ea579ce29e32fd6059d911c4a4479f8e253a50b",
     "src/navsim/imu.py": "a31846359a39abfece337975a57a68b8337c1f244672529dd9d3dd19de55a316",
     "src/navsim/kf_altitude.py": "a3c577332792252ef97e3c0e8e500d9953215a955d82786a8fcd893502aa4f74",
@@ -25,74 +26,75 @@
     "tests/test_step2.py": "bf2e00106ce2250759f686bb24fcc29bb3748bd86df74730bfc7bed94c2805b5",
     "tests/test_step3.py": "4d84aec5d68d6f8dab78856188827be2b60713c037cf880d9119c6b896c86c05",
     "tests/test_step4.py": "31c000128c1dc858cb5eb15c8c970f96b00ca483c2723308b32f450546490997",
-    "tests/test_step5.py": "1b419b961cae986b4ec21b1b6304e508af66cb02bc0912a96d194b5a8f30c7a9"
+    "tests/test_step5.py": "44fe269b5c71e5a3282bdf2c260a77ca3212b34f08732cd0aa0f08282166fc74",
+    "tests/test_step6.py": "49d0132b3af8f633f37d0e66f0b1c2cb3089febffcaf511b0fb76633a1a0a386"
   },
   "results": [
     {
       "id": "M01",
       "status": "killed",
       "by": "tests/test_step3.py::test_transition_matrix_matches_nonlinear_propagation[30.0]",
-      "seconds": 3.2
+      "seconds": 3.4
     },
     {
       "id": "M02",
       "status": "killed",
       "by": "tests/test_step3.py::test_transition_matrix_matches_nonlinear_propagation[30.0]",
-      "seconds": 3.0
+      "seconds": 3.1
     },
     {
       "id": "M03",
       "status": "killed",
       "by": "tests/test_oracles.py::test_propagated_covariance_matches_monte_carlo[noise_only]",
-      "seconds": 45.2
+      "seconds": 64.1
     },
     {
       "id": "M04",
       "status": "killed",
       "by": "tests/test_step3.py::test_filter_is_consistent_on_a_short_flight",
-      "seconds": 15.3
+      "seconds": 20.9
     },
     {
       "id": "M05",
       "status": "killed",
       "by": "tests/test_oracles.py::test_reset_jacobian_matches_rotation_composition[0]",
-      "seconds": 54.4
+      "seconds": 75.6
     },
     {
       "id": "M06",
       "status": "survived",
       "by": "",
-      "seconds": 335.8
+      "seconds": 601.3
     },
     {
       "id": "M07",
       "status": "killed",
       "by": "tests/test_step4.py::test_gnss_bias_states_follow_gauss_markov",
-      "seconds": 1.1
+      "seconds": 1.4
     },
     {
       "id": "M08",
       "status": "killed",
       "by": "tests/test_step2.py::test_perfect_imu_reproduces_mission",
-      "seconds": 19.5
+      "seconds": 19.2
     },
     {
       "id": "M09",
       "status": "killed",
       "by": "tests/test_step2.py::test_perfect_imu_reproduces_mission",
-      "seconds": 19.0
+      "seconds": 19.9
     },
     {
       "id": "M10",
       "status": "killed",
       "by": "tests/test_step2.py::test_perfect_imu_reproduces_mission",
-      "seconds": 19.1
+      "seconds": 25.3
     },
     {
       "id": "M11",
       "status": "killed",
       "by": "tests/test_step2.py::test_dead_reckoning_matches_error_budget",
-      "seconds": 111.9
+      "seconds": 126.4
     },
     {
       "id": "M12",
@@ -110,67 +112,67 @@
       "id": "M14",
       "status": "killed",
       "by": "tests/test_step2.py::test_specific_force_in_steady_turn",
-      "seconds": 3.2
+      "seconds": 3.0
     },
     {
       "id": "M15",
       "status": "killed",
       "by": "tests/test_oracles.py::test_trajectory_matches_ode_integration",
-      "seconds": 22.9
+      "seconds": 30.0
     },
     {
       "id": "M16",
       "status": "killed",
       "by": "tests/test_oracles.py::test_propagated_covariance_matches_monte_carlo[noise_only]",
-      "seconds": 46.6
+      "seconds": 53.0
     },
     {
       "id": "M17",
       "status": "killed",
       "by": "tests/test_step1.py::test_filter_is_consistent_when_model_matches",
-      "seconds": 8.8
+      "seconds": 10.7
     },
     {
       "id": "M18",
       "status": "killed",
       "by": "tests/test_step4.py::test_correlated_error_statistics",
-      "seconds": 0.9
+      "seconds": 1.4
     },
     {
       "id": "M19",
       "status": "killed",
       "by": "tests/test_step1.py::test_filter_is_consistent_when_model_matches",
-      "seconds": 9.2
+      "seconds": 10.5
     },
     {
       "id": "M20",
       "status": "killed",
       "by": "tests/test_oracles.py::test_van_loan_matches_covariance_ode",
-      "seconds": 1.3
+      "seconds": 1.4
     },
     {
       "id": "M21",
       "status": "killed",
       "by": "tests/test_step1.py::test_filter_is_consistent_when_model_matches",
-      "seconds": 8.9
+      "seconds": 10.4
     },
     {
       "id": "M22",
       "status": "killed",
       "by": "tests/test_oracles.py::test_latency_geometry[compensate-0.0]",
-      "seconds": 53.0
+      "seconds": 61.7
     },
     {
       "id": "M23",
       "status": "killed",
       "by": "tests/test_step4.py::test_initial_covariance_correlates_position_and_gnss_bias",
-      "seconds": 0.9
+      "seconds": 1.4
     },
     {
       "id": "M24",
       "status": "killed",
       "by": "tests/test_step4.py::test_delayed_mode_without_latency_equals_plain_filter",
-      "seconds": 14.2
+      "seconds": 14.4
     },
     {
       "id": "M25",
@@ -182,55 +184,97 @@
       "id": "M26",
       "status": "killed",
       "by": "tests/test_step5.py::test_measurement_jacobian_matches_numerical_derivative[0-mag]",
-      "seconds": 4.7
+      "seconds": 5.0
     },
     {
       "id": "M27",
       "status": "killed",
       "by": "tests/test_step5.py::test_measurement_jacobian_matches_numerical_derivative[0-airspeed]",
-      "seconds": 4.6
+      "seconds": 4.9
     },
     {
       "id": "M28",
       "status": "killed",
       "by": "tests/test_step5.py::test_measurement_jacobian_matches_numerical_derivative[0-sideslip]",
-      "seconds": 4.5
+      "seconds": 4.9
     },
     {
       "id": "M29",
       "status": "killed",
       "by": "tests/test_step5.py::test_measurement_jacobian_matches_numerical_derivative[0-baro]",
-      "seconds": 4.6
+      "seconds": 4.9
     },
     {
       "id": "M30",
       "status": "killed",
       "by": "tests/test_step5.py::test_gated_mag_bias_keeps_the_heading_consistent",
-      "seconds": 25.9
+      "seconds": 26.4
     },
     {
       "id": "M31",
       "status": "killed",
       "by": "tests/test_step5.py::test_changing_wind_is_in_the_specific_force",
-      "seconds": 4.3
+      "seconds": 4.6
     },
     {
       "id": "M32",
       "status": "killed",
       "by": "tests/test_step5.py::test_magnetometer_stream_statistics",
-      "seconds": 4.6
+      "seconds": 4.9
     },
     {
       "id": "M33",
       "status": "killed",
       "by": "tests/test_step5.py::test_magnetometer_heading_recovers_the_true_heading",
-      "seconds": 4.5
+      "seconds": 4.8
     },
     {
       "id": "M34",
       "status": "killed",
       "by": "tests/test_step5.py::test_initial_wind_covariance_matches_monte_carlo",
-      "seconds": 91.3
+      "seconds": 96.4
+    },
+    {
+      "id": "M35",
+      "status": "killed",
+      "by": "tests/test_step6.py::test_gate_rejects_outliers_and_leaves_the_filter_untouched",
+      "seconds": 1.3
+    },
+    {
+      "id": "M36",
+      "status": "killed",
+      "by": "tests/test_step6.py::test_gate_rejects_outliers_and_leaves_the_filter_untouched",
+      "seconds": 1.4
+    },
+    {
+      "id": "M37",
+      "status": "killed",
+      "by": "tests/test_step6.py::test_gnss_false_alarm_rate_in_flight",
+      "seconds": 50.1
+    },
+    {
+      "id": "M38",
+      "status": "killed",
+      "by": "tests/test_step6.py::test_wind_lockout_and_its_protection",
+      "seconds": 96.3
+    },
+    {
+      "id": "M39",
+      "status": "killed",
+      "by": "tests/test_step6.py::test_gnss_lockout_and_its_protection",
+      "seconds": 205.5
+    },
+    {
+      "id": "M40",
+      "status": "killed",
+      "by": "tests/test_step6.py::test_outage_is_applied_and_gnss_is_accepted_again",
+      "seconds": 50.2
+    },
+    {
+      "id": "M41",
+      "status": "killed",
+      "by": "tests/test_step6.py::test_strong_magnetic_disturbance_is_rejected",
+      "seconds": 154.7
     }
   ]
 }

@@ -45,9 +45,19 @@ class WindModel:
     """How the filter models the horizontal wind: a random walk."""
     sigma0: float = 5.0       # [m/s] initial uncertainty per axis
     rw: float = 0.2           # [m/s/sqrt(s)]
+    # Step 6: random walk used while no GNSS fix has been fused for more than
+    # 1 s. The wind is then unobservable, and a large random walk only lets
+    # the filter explain its own IMU drift as wind changes. None: keep rw.
+    rw_without_gnss: float | None = None
     # Start from the first Pitot sample (ground velocity minus airspeed along
     # the heading) instead of zero +- sigma0. See fusion.wind_from_first_airspeed.
     init_from_airspeed: bool = True
+    init_sideslip_sigma_deg: float = 2.0   # doubt on "air velocity along the heading"
+    # Step 6, protection against gating lock-out: if the Pitot is rejected by
+    # the innovation gate for this long without a break, the wind estimate is
+    # assumed wrong and restarted from the current airspeed sample, the same
+    # way as at start-up. None: never.
+    reset_after_rejected_s: float | None = 5.0
 
 
 BARO_10HZ = BaroConfig(rate_hz=10.0)
@@ -95,8 +105,12 @@ class MagStream:
         self.cfg, self.rng, self.runs = cfg, rng, runs
         self.bias = rng.normal(0.0, cfg.bias0, (runs, 3))
 
-    def measure(self, q_nb: np.ndarray) -> np.ndarray:
-        m_b = quat_rotate(quat_conj(q_nb), np.asarray(self.cfg.field_ned))
+    def measure(self, q_nb: np.ndarray, disturbance_ned=None) -> np.ndarray:
+        """disturbance_ned: local field added to the Earth field (step 6 faults)."""
+        field = np.asarray(self.cfg.field_ned)
+        if disturbance_ned is not None:
+            field = field + disturbance_ned
+        m_b = quat_rotate(quat_conj(q_nb), field)
         z = m_b + self.bias + self.rng.normal(0.0, self.cfg.noise, (self.runs, 3))
         self.bias = self.bias + self.rng.normal(0.0, self.cfg.bias_rw / np.sqrt(self.cfg.rate_hz),
                                                 (self.runs, 3))

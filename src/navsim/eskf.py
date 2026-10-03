@@ -146,7 +146,12 @@ class ErrorStateEKF:
         if aiding is not None and aiding.pitot is not None:
             self.R_pitot = np.array([[aiding.pitot.noise**2]])
         self.Qd = np.diag(qd)
+        self.dt = dt
         self.eye = np.eye(n)
+        # Innovation gates (step 6): measurement name -> NIS threshold. An
+        # update whose NIS exceeds it is rejected for that run. Empty: no gating.
+        self.gates = {}
+        self.rejected = np.zeros(runs, dtype=bool)  # result of the last update
         # kept for backward compatibility with step 4
         self.H, self.R = self.H_gnss, self.R_gnss
         if model_gnss_bias:
@@ -162,6 +167,39 @@ class ErrorStateEKF:
         self._prev = None
 
     # nominal values of the extra states, by name
+    def set_random_walk(self, name: str, sigma: np.ndarray):
+        """Change the random-walk density of the block `name`, per run
+        (sigma: (runs,) [unit/sqrt(s)]). Qd becomes per-run."""
+        if self.Qd.ndim == 2:
+            self.Qd = np.broadcast_to(self.Qd, (self.runs, self.n, self.n)).copy()
+        idx = np.arange(self.n)[self.blocks[name]]
+        self.Qd[:, idx, idx] = (np.asarray(sigma, dtype=float) ** 2 * self.dt)[:, None]
+
+    def reset_to_gnss(self, mask: np.ndarray, z: np.ndarray):
+        """Restart position and velocity on a GNSS fix, for the runs in mask
+        (protection against a gate that keeps rejecting GNSS, step 6).
+
+        p = z_p - b_gnss and v = z_v: the new errors are those of the fix.
+        Position and velocity lose their correlations with the other states,
+        except the position with the GNSS bias it was computed with."""
+        if not mask.any():
+            return
+        pv = slice(0, 6)
+        R = self.R_gnss
+        P = self.P[mask]
+        P[:, pv, :] = 0.0
+        P[:, :, pv] = 0.0
+        P[:, pv, pv] = R
+        if "gnss_bias" in self.blocks:
+            b = self.blocks["gnss_bias"]
+            Pbb = self.P[mask][:, b, b]
+            P[:, 0:3, 0:3] += Pbb
+            P[:, 0:3, b] = -Pbb
+            P[:, b, 0:3] = -Pbb
+        self.P[mask] = P
+        self.p[mask] = z[mask, 0:3] - self.bgnss[mask]
+        self.v[mask] = z[mask, 3:6]
+
     def nominal(self, name):
         s = self.blocks[name]
         return self.extra[:, s.start - 15:s.stop - 15]
@@ -217,7 +255,7 @@ class ErrorStateEKF:
 
     # --- measurement updates ------------------------------------------------
 
-    def update(self, y: np.ndarray, H: np.ndarray, R: np.ndarray, frozen=None):
+    def update(self, y: np.ndarray, H: np.ndarray, R: np.ndarray, frozen=None, gate=None):
         """Generic update. y: (runs, m) innovations, H: (m, n) or (runs, m, n),
         R: (m, m). Joseph form, then injection and reset. Returns
         (innovations, their covariance, NIS).
@@ -225,16 +263,25 @@ class ErrorStateEKF:
         frozen: optional (slice, mask) — for the runs where mask is True, the
         states in the slice are "consider" states (Schmidt-Kalman): their
         uncertainty is counted in S, but their gain is set to zero, so the
-        update does not learn them. The Joseph form keeps P exact for any gain."""
+        update does not learn them. The Joseph form keeps P exact for any gain.
+
+        gate: optional NIS threshold. For the runs where y^T S^-1 y exceeds
+        it, the whole measurement is rejected (zero gain: state and P are left
+        as they are). self.rejected says which runs rejected it."""
         Ht = np.swapaxes(H, -1, -2)
         PHt = self.P @ Ht
         S = H @ PHt + R
         S_inv = np.linalg.inv(S)
         K = PHt @ S_inv
+        nis = np.einsum("ri,rij,rj->r", y, S_inv, y)
         if frozen is not None:
             sl, mask = frozen
             K = K.copy()
             K[mask, sl, :] = 0.0
+        self.rejected = np.zeros(self.runs, dtype=bool) if gate is None else nis > gate
+        if self.rejected.any():
+            K = K.copy()
+            K[self.rejected] = 0.0
         dx = np.einsum("rij,rj->ri", K, y)
         # Joseph form: (I - KH) P (I - KH)^T + K R K^T
         IKH = self.eye - K @ H
@@ -252,14 +299,12 @@ class ErrorStateEKF:
         G[:, 6:9, 6:9] = reset_jacobian(dx[:, 6:9])
         P = G @ P @ np.swapaxes(G, 1, 2)
         self.P = 0.5 * (P + np.swapaxes(P, 1, 2))
-
-        nis = np.einsum("ri,rij,rj->r", y, S_inv, y)
         return y, S, nis
 
     def update_gnss(self, z: np.ndarray):
         """z: (runs, 6) = position and velocity in NED."""
         y = z - np.concatenate([self.p + self.bgnss, self.v], axis=1)
-        return self.update(y, self.H_gnss, self.R_gnss)
+        return self.update(y, self.H_gnss, self.R_gnss, gate=self.gates.get("gnss"))
 
     def update_baro(self, z: np.ndarray):
         """z: (runs,) altitude. Altitude is -p_D, so H has -1 on dp_D."""
@@ -267,7 +312,7 @@ class ErrorStateEKF:
         H = np.zeros((1, self.n))
         H[0, 2] = -1.0
         H[0, self.blocks["baro_bias"]] = 1.0
-        return self.update(y, H, self.R_baro)
+        return self.update(y, H, self.R_baro, gate=self.gates.get("baro"))
 
     def update_mag(self, z: np.ndarray, learn_bias=None):
         """z: (runs, 3) magnetic field in the body frame.
@@ -281,7 +326,7 @@ class ErrorStateEKF:
         H[:, :, 6:9] = Ct @ skew(self.m_n)
         H[:, :, self.blocks["mag_bias"]] = np.eye(3)
         frozen = None if learn_bias is None else (self.blocks["mag_bias"], ~np.asarray(learn_bias))
-        return self.update(y, H, self.R_mag, frozen)
+        return self.update(y, H, self.R_mag, frozen, gate=self.gates.get("mag"))
 
     def update_airspeed(self, z: np.ndarray):
         """z: (runs,) true airspeed = |v - w|, w = (w_N, w_E, 0).
@@ -296,7 +341,7 @@ class ErrorStateEKF:
         H = np.zeros((self.runs, 1, self.n))
         H[:, 0, 3:6] = u
         H[:, 0, self.blocks["wind"]] = -u[:, :2]
-        return self.update(y, H, self.R_pitot)
+        return self.update(y, H, self.R_pitot, gate=self.gates.get("pitot"))
 
     def update_sideslip(self, sigma_rad: float):
         """Synthetic measurement of zero sideslip: a fixed-wing flies with its
@@ -320,5 +365,5 @@ class ErrorStateEKF:
         H[:, 0, 3:6] = d_vair
         H[:, 0, self.blocks["wind"]] = -d_vair[:, :2]
         H[:, 0, 6:9] = (Ct @ skew(v_air))[:, 1, :] / V[:, None]
-        return self.update(y, H, np.array([[sigma_rad**2]]))
+        return self.update(y, H, np.array([[sigma_rad**2]]), gate=self.gates.get("sideslip"))
 

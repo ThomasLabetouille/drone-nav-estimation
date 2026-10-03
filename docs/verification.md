@@ -2,11 +2,11 @@
 
 Une bonne partie du code de ce dépôt a été écrite avec un assistant IA (Claude), et les tests aussi. Un test écrit en même temps que le code qu'il vérifie risque de partager ses erreurs : la même convention de rotation, le même signe, la même compréhension fausse d'une densité de bruit. La vérification est donc organisée en couches, et chaque couche passe par un chemin différent de celui du code.
 
-`python -m pytest` lance tout sauf les tests de mutation (environ six minutes).
+`python -m pytest` lance tout sauf les tests de mutation (environ huit minutes).
 
 ## 1. Tests de chaque étape
 
-`tests/test_step1.py` à `tests/test_step5.py`. Ils vérifient ce que chaque étape affirme : cohérence de la vérité terrain, consistance des filtres (NEES, NIS), effet de chaque correction du strapdown, observabilité du cap, comportement face à la latence, estimation du vent et apport du baromètre (à tirages identiques, avec et sans).
+`tests/test_step1.py` à `tests/test_step6.py`. Ils vérifient ce que chaque étape affirme : cohérence de la vérité terrain, consistance des filtres (NEES, NIS), effet de chaque correction du strapdown, observabilité du cap, comportement face à la latence, estimation du vent et apport du baromètre (à tirages identiques, avec et sans), rejet des pannes par le test d'innovation, et les deux blocages de l'étape 6 avec leurs protections : chaque blocage est reproduit sans protection, puis corrigé avec.
 
 ## 2. Oracles indépendants
 
@@ -31,6 +31,7 @@ Une bonne partie du code de ce dépôt a été écrite avec un assistant IA (Cla
 | Cap magnétique compensé en inclinaison | champ terrestre tourné par scipy pour 200 attitudes aléatoires |
 | Covariance initiale du vent (premier échantillon Pitot) | Monte-Carlo de 40 000 tirages de la relation non linéaire, termes croisés vent/cap/vitesse compris |
 | Générateurs magnétomètre et baro | leur spécification : biais initial, bruit, marche aléatoire, stationnarité de la dérive |
+| Test d'innovation (étape 6) | 20 000 innovations tirées dans la covariance que le filtre prédit : le taux de rejet doit suivre la probabilité choisie (test binomial). Cela vérifie ensemble le NIS, le seuil et le nombre de degrés de liberté |
 
 ## 3. Propriétés
 
@@ -48,7 +49,7 @@ Dans le même fichier. Ils n'ont pas besoin de réponse de référence, seulemen
 
 ## 5. Tests de mutation
 
-`scripts/mutation_check.py` introduit 34 bugs plausibles, un par un, dans une copie du dépôt : un signe dans la matrice de transition, une correction d'attitude injectée dans le mauvais repère, une densité de bruit appliquée en `dt` au lieu de `√dt`, la gravité de signe inversé, un échantillon IMU de décalage... Il lance ensuite la suite de tests sur chaque copie. Une suite de tests qu'on n'a jamais vue échouer sur un bug connu ne prouve pas grand-chose ; c'est le test des tests. Le rapport est dans [`mutation_report.md`](mutation_report.md).
+`scripts/mutation_check.py` introduit 41 bugs plausibles, un par un, dans une copie du dépôt : un signe dans la matrice de transition, une correction d'attitude injectée dans le mauvais repère, une densité de bruit appliquée en `dt` au lieu de `√dt`, la gravité de signe inversé, un échantillon IMU de décalage... Il lance ensuite la suite de tests sur chaque copie. Une suite de tests qu'on n'a jamais vue échouer sur un bug connu ne prouve pas grand-chose ; c'est le test des tests. Le rapport est dans [`mutation_report.md`](mutation_report.md).
 
 La première exécution a montré deux faiblesses réelles :
 
@@ -67,17 +68,15 @@ M05 inverse le signe de la jacobienne de réinitialisation de l'EKF, la matrice 
 
 Aucun test ne le voyait, parce que l'effet est petit tant que les corrections d'attitude sont petites. Il devient visible quand le filtre accumule beaucoup de petites corrections sur une direction mal observée, ce qui est exactement le cas du cap en ligne droite. La correction a changé quelques résultats de l'étape 3 : le NEES d'attitude avant le premier virage passe de 1,45 à 1,20. Le README raconte l'écart que j'avais attribué à tort à la seule linéarisation.
 
-Trois leçons :
-
-- **une mutation classée « attendue » est une hypothèse, pas un fait** : celle-ci aurait dû être vérifiée par un oracle dès le début ;
-- **une formule courante dépend de ses conventions** : `I − [δθ/2 ×]` est juste pour une erreur locale, fausse pour l'erreur globale de ce filtre ;
-- **un test qui sait qu'un comportement est mauvais vaut autant qu'un test qui sait qu'il est bon** : c'est le test du défaut connu (E2b) qui a trouvé le bug.
+Ce que j'en retiens. Classer une mutation « attendue » était une hypothèse que j'aurais dû vérifier tout de suite avec un oracle. La formule `I − [δθ/2 ×]` est juste pour une erreur locale et fausse pour l'erreur globale de ce filtre. Et c'est un test qui vérifie un comportement connu pour être mauvais (E2b, le biais appris en ligne droite) qui a trouvé le bug.
 
 `tests/test_oracles.py::test_reset_jacobian_matches_rotation_composition` compare maintenant la jacobienne à la dérivée numérique de la composition exacte, et M05 est détectée.
 
 Les mutations M26 à M34 visent l'étape 5 : signes des jacobiennes magnétomètre, Pitot et baro, signe de la corrélation vent/cap, apprentissage du biais magnétomètre inversé (en ligne droite au lieu des virages), accélération du vent oubliée dans la force spécifique. M28 reproduit une erreur que j'ai réellement faite en écrivant la mesure de dérapage : la dérivée de `1/V` oubliée dans la jacobienne. Je l'avais trouvée avec une dérivée numérique ; la mutation vérifie que les tests la trouvent seuls.
 
-Le script s'arrête en erreur si une mutation survit sans être marquée comme attendue. En CI, il tourne chaque semaine et à la demande (environ 15 minutes).
+M35 à M41 visent l'étape 6 : test d'innovation inversé, mesure rejetée mais fusionnée quand même, mauvais nombre de degrés de liberté, protection contre le blocage désactivée, pannes simulées ignorées. À la première exécution, M37 a survécu : un seuil calculé sur 3 degrés de liberté au lieu de 6 rejette environ 1 % des bonnes positions GNSS au lieu de 0,1 %, et aucun test ne regardait le taux de rejet en vol. Un test le vérifie maintenant avant la perte GNSS (test binomial), et M37 est détectée.
+
+Le script s'arrête en erreur si une mutation survit sans être marquée comme attendue. En CI, il tourne chaque semaine et à la demande (environ 45 minutes).
 
 ## 6. Documentation et résultats
 

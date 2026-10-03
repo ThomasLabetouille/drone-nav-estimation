@@ -158,6 +158,27 @@ MUTATIONS = (
              ("tests/test_step5.py",)),
     Mutation("M34", "src/navsim/fusion.py", "J[:, :, 8] = -tas0[:, None] * u_perp", "J[:, :, 8] = tas0[:, None] * u_perp",
              "signe de la corrélation vent / cap dans la covariance initiale du vent", ("tests/test_step5.py",)),
+    # --- step 6: faults and gating -------------------------------------------
+    Mutation("M35", "src/navsim/eskf.py",
+             "self.rejected = np.zeros(self.runs, dtype=bool) if gate is None else nis > gate",
+             "self.rejected = np.zeros(self.runs, dtype=bool) if gate is None else nis < gate",
+             "test d'innovation inversé", ("tests/test_step6.py",)),
+    Mutation("M36", "src/navsim/eskf.py", "K[self.rejected] = 0.0", "K[self.rejected] = 1.0 * K[self.rejected]",
+             "mesure rejetée mais fusionnée quand même", ("tests/test_step6.py",)),
+    Mutation("M37", "src/navsim/fusion.py", '"gnss": 6, "baro": 1', '"gnss": 3, "baro": 1',
+             "degrés de liberté du test GNSS (position seule au lieu de position + vitesse)",
+             ("tests/test_step6.py",)),
+    Mutation("M38", "src/navsim/fusion.py", "            if reset.any():\n                P, extra = wind_from_first_airspeed",
+             "            if False:\n                P, extra = wind_from_first_airspeed",
+             "protection contre le blocage du Pitot désactivée", ("tests/test_step6.py",)),
+    Mutation("M39", "src/navsim/fusion.py",
+             "np.where(dead_reckoning, aiding.wind.rw_without_gnss, aiding.wind.rw)",
+             "np.where(dead_reckoning, aiding.wind.rw, aiding.wind.rw_without_gnss)",
+             "marche aléatoire du vent réduite avec GNSS au lieu de sans", ("tests/test_step6.py",)),
+    Mutation("M40", "src/navsim/fusion.py", "        if faults.gnss_lost(t):", "        if False:",
+             "perte GNSS simulée ignorée", ("tests/test_step6.py",)),
+    Mutation("M41", "src/navsim/aiding.py", "            field = field + disturbance_ned", "            field = field",
+             "perturbation magnétique simulée ignorée", ("tests/test_step6.py",)),
 )
 
 

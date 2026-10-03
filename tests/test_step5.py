@@ -168,9 +168,9 @@ def captured_update(ekf, call):
     seen = {}
     real = ekf.update
 
-    def spy(y, H, R, frozen=None):
+    def spy(y, H, R, frozen=None, gate=None):
         seen["y"], seen["H"] = np.array(y), np.broadcast_to(H, (ekf.runs, *np.shape(H)[-2:])).copy()
-        return real(y, H, R, frozen)
+        return real(y, H, R, frozen, gate)
 
     ekf.update = spy
     call(ekf)
@@ -306,8 +306,9 @@ def test_initial_wind_covariance_matches_monte_carlo():
     blocks = {"wind": slice(19, 21)}
     psi_t = 0.3 + rng.normal(0.0, 0.02, runs)
     tas_t, w_t = 17.0, np.array([1.0, 5.0])
-    v_t = np.c_[tas_t * np.cos(psi_t) + w_t[0], tas_t * np.sin(psi_t) + w_t[1], np.zeros(runs)]
-    sig_v, sig_psi, sig_tas = 0.1, np.radians(3.0), 0.3
+    sig_v, sig_psi, sig_tas, sig_beta = 0.1, np.radians(3.0), 0.3, np.radians(2.0)
+    course_air = psi_t + rng.normal(0.0, sig_beta, runs)      # heading + sideslip
+    v_t = np.c_[tas_t * np.cos(course_air) + w_t[0], tas_t * np.sin(course_air) + w_t[1], np.zeros(runs)]
     P0 = np.eye(n)
     P0[3:6, 3:6] = sig_v**2 * np.eye(3)
     P0[8, 8] = sig_psi**2
@@ -316,7 +317,7 @@ def test_initial_wind_covariance_matches_monte_carlo():
     v0 = v_t - dv
     q0 = quat_from_euler(np.zeros(runs), np.zeros(runs), psi_t - dpsi)
     tas0 = tas_t + rng.normal(0.0, sig_tas, runs)
-    P, extra = fusion.wind_from_first_airspeed(blocks, n, v0, q0, tas0, P0, sig_tas)
+    P, extra = fusion.wind_from_first_airspeed(blocks, n, v0, q0, tas0, P0, sig_tas, sig_beta)
     dw = w_t - extra[:, 4:6]
     errs = np.c_[dv[:, :2], dpsi, dw]
     idx = [3, 4, 8, 19, 20]

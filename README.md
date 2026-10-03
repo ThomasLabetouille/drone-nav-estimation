@@ -4,13 +4,14 @@
 
 Simulation de capteurs et estimation d'état pour un drone à voilure fixe, en Python, avec un portage C++ prévu une fois les algorithmes validés.
 
-Le projet avance par étapes. Chacune ajoute des capteurs ou des états au filtre et se valide avant de passer à la suivante. Cinq étapes sont faites :
+Le projet avance par étapes. Chacune ajoute des capteurs ou des états au filtre et se valide avant de passer à la suivante. Six étapes sont faites :
 
 1. la voie verticale : un filtre de Kalman qui fusionne un accéléromètre et un baromètre ;
 2. la navigation inertielle en 3D : trajectoire de voilure fixe, IMU 6 axes, intégration strapdown, et l'erreur d'une IMU MEMS seule comparée à son budget analytique ;
 3. un EKF à état d'erreur à 15 états qui fusionne l'IMU et le GNSS, avec ce qu'il apprend à chaque manœuvre et ce qu'il ne peut pas apprendre en ligne droite ;
 4. un GNSS réaliste : erreurs corrélées dans le temps, estimées par trois états de plus, et 150 ms de latence gérée par un filtre à horizon retardé ;
-5. les capteurs d'aide d'un drone à voilure fixe, dans 5 m/s de vent : magnétomètre, baromètre, tube de Pitot, et l'estimation du vent.
+5. les capteurs d'aide d'un drone à voilure fixe, dans 5 m/s de vent : magnétomètre, baromètre, tube de Pitot, et l'estimation du vent ;
+6. les modes dégradés : perte et saut du GNSS, perturbation magnétique, test d'innovation et blocages qu'il peut provoquer.
 
 ![Estimation d'altitude sur une mission complète](docs/img/step1_estimation.png)
 
@@ -18,15 +19,16 @@ Le projet avance par étapes. Chacune ajoute des capteurs ou des états au filtr
 
 ```bash
 pip install -e ".[dev]"
-python -m pytest                       # environ six minutes
+python -m pytest                       # environ huit minutes
 python scripts/step1_altitude.py       # étape 1, ~45 s
 python scripts/step2_strapdown.py      # étape 2, ~50 s
 python scripts/step3_eskf.py           # étape 3, ~2 min 30
 python scripts/step4_gnss.py           # étape 4, ~5 min
 python scripts/step5_aiding.py         # étape 5, ~40 min (--runs 10 : ~10 min)
+python scripts/step6_degraded.py       # étape 6 et sa vidéo, ~1 h (--runs 10, --no-video)
 python scripts/step2_strapdown.py --runs 100   # plus rapide, moins de Monte-Carlo
 python scripts/check_provenance.py     # les résultats de docs/ correspondent-ils au code actuel ?
-python scripts/mutation_check.py       # les tests détectent-ils des bugs connus ? ~15 min
+python scripts/mutation_check.py       # les tests détectent-ils des bugs connus ? ~45 min
 ```
 
 Les figures sont écrites dans `docs/img/`, les tableaux dans `docs/stepN_results.md`.
@@ -368,10 +370,10 @@ C'est aussi ce cas qui a fait apparaître le bug de signe de la jacobienne de r�
 <!-- source: docs/step5_results.md -->
 | | Cap avant 1er virage | Vent de travers avant 1er virage | Vent le long | Vent de travers | NEES vent |
 |---|---|---|---|---|---|
-| E4 : + Pitot et vent | 2,26° | 0,68 m/s | 0,08 m/s | 0,11 m/s | 0,36 |
-| E5a : + dérapage nul, σ 2° (naïf) | 2,28° | 0,67 m/s | 0,10 m/s | 0,18 m/s | 1,18 |
+| E4 : + Pitot et vent | 2,25° | 0,69 m/s | 0,08 m/s | 0,11 m/s | 0,36 |
+| E5a : + dérapage nul, σ 2° (naïf) | 2,26° | 0,67 m/s | 0,10 m/s | 0,18 m/s | 1,18 |
 | E5i : σ 6°, vent initial nul | 3,12° | 0,93 m/s | 0,08 m/s | 0,07 m/s | 0,41 |
-| E5 : + dérapage nul, σ 6° | 2,27° | 0,67 m/s | 0,08 m/s | 0,07 m/s | 0,41 |
+| E5 : + dérapage nul, σ 6° | 2,26° | 0,67 m/s | 0,08 m/s | 0,07 m/s | 0,41 |
 
 Les erreurs de vent sont projetées sur la trajectoire air : « le long » dans l'axe de vol, « de travers » perpendiculairement.
 
@@ -383,7 +385,7 @@ Après 120 s, le vent est connu à 0,1 m/s près. Le NEES de 0,36 montre un filt
 
 Dans ma vérité terrain, le dérapage vaut exactement zéro ailes à plat, mais il atteint 1,5° en virage (l'incidence de 3° tournée par le roulis), et il y reste plusieurs secondes. Avec σ = 2° fusionné à 10 Hz (E5a), c'est pire que sans la mesure : 0,18 m/s de travers contre 0,11, et un NEES de 1,18. Le filtre traite dix échantillons par seconde comme indépendants alors qu'ils portent la même erreur, et il pousse ce 1,5° dans le vent à chaque virage (les bosses à 0,35 m/s de la figure). Avec σ = 6°, soit 2° une fois par seconde, le vent de travers descend à 0,07 m/s et le filtre reste cohérent.
 
-**E5i, le vent initial.** Ma première version démarrait avec un vent nul à ±5 m/s. Sans dérapage, cela ne gênait pas. Avec, la première innovation de dérapage vaut l'angle de dérive complet, environ 16°. L'EKF linéarise une erreur de cette taille et la répartit entre le cap et le vent : le cap avant le premier virage passe à 3,12°, avec un NEES d'attitude de 1,39 (1,00 pour E5). Dans un essai rapide sur 8 runs, démarrer le même filtre avec le vent vrai réduisait l'écart de moitié, ce qui confirmait la cause. L'initialisation sur le premier échantillon Pitot le supprime. Un test compare la covariance initiale du vent, termes croisés compris, à 40 000 tirages de la relation non linéaire.
+**E5i, le vent initial.** Ma première version démarrait avec un vent nul à ±5 m/s. Sans dérapage, cela ne gênait pas. Avec, la première innovation de dérapage vaut l'angle de dérive complet, environ 16°. L'EKF linéarise une erreur de cette taille et la répartit entre le cap et le vent : le cap avant le premier virage passe à 3,12°, avec un NEES d'attitude de 1,39 (0,99 pour E5). Dans un essai rapide sur 8 runs, démarrer le même filtre avec le vent vrai réduisait l'écart de moitié, ce qui confirmait la cause. L'initialisation sur le premier échantillon Pitot le supprime. Un test compare la covariance initiale du vent, termes croisés compris, à 40 000 tirages de la relation non linéaire.
 
 **La position horizontale** reste à 1,27 m dans toutes les configurations. Aucun de ces capteurs ne mesure la position, et c'est l'erreur corrélée du GNSS qui domine. Leur intérêt pour la position apparaîtra quand le GNSS disparaît (étape 6) : avec le cap magnétique, la vitesse air et le vent, le filtre peut naviguer à l'estime au lieu de dériver en inertiel pur.
 
@@ -394,6 +396,99 @@ Le code est dans `src/navsim/aiding.py` (capteurs), `src/navsim/eskf.py` (`updat
 - **La jacobienne du dérapage.** Ma première version oubliait la dérivée de `1/V`. Une comparaison à la dérivée numérique l'a montré. Les quatre jacobiennes de mesure sont maintenant testées contre des fonctions de mesure réécrites avec scipy, et la mutation M28 remet l'erreur pour vérifier que les tests la trouvent.
 - **Comparer à tirages égaux.** Les nouveaux capteurs tiraient leur bruit dans le même générateur aléatoire que l'IMU et le GNSS. Ajouter un capteur changeait donc les erreurs IMU et GNSS de tout le vol, et deux configurations ne différaient plus seulement par le filtre. Chaque capteur d'aide a maintenant son propre générateur, dérivé de la graine. J'ai relancé les étapes 2 à 4 : aucun chiffre n'a changé.
 - Le biais du magnétomètre et le vent initial sont décrits plus haut (E2b, E5i).
+
+## Étape 6 : modes dégradés
+
+![Perte du GNSS en vol](docs/img/step6_outage.gif)
+
+Un capteur peut se taire ou se tromper. Cette étape injecte quatre pannes dans les mesures simulées de la mission de l'étape 5, sans prévenir le filtre :
+
+- une perte du GNSS pendant 60 s ;
+- un saut de 15 m de la position GNSS pendant 30 s, comme avec des trajets multiples ;
+- une perturbation magnétique locale, par exemple une ligne électrique ou un courant moteur ;
+- un vent qui tourne.
+
+Le filtre a deux défenses.
+
+- **Le test d'innovation.** Avant chaque mise à jour, le NIS de la mesure est comparé au seuil du χ² à 99,9 %. Au-delà, la mesure est rejetée pour ce run. Un filtre cohérent rejette ainsi 0,1 % de mesures valides.
+- **Deux protections contre le blocage.** Si aucune position GNSS n'a été acceptée depuis 45 s, la suivante est imposée : position et vitesse repartent sur elle. Si le Pitot est rejeté 5 s de suite, le vent est réinitialisé sur la mesure courante, comme au démarrage.
+
+Chaque configuration tourne avec 40 runs et les mêmes tirages. La vidéo complète est dans [`docs/img/step6_outage.mp4`](docs/img/step6_outage.mp4).
+
+### Perte du GNSS pendant 60 s
+
+<!-- source: docs/step6_results.md -->
+| De 180 à 240 s, en ligne droite | Après 30 s | Après 60 s | Pire run après 60 s | NEES position |
+|---|---|---|---|---|
+| O1 : IMU + GNSS | 14,8 m | 85,1 m | 140,7 m | 1,18 |
+| O2 : + magnétomètre et baro | 8,1 m | 39,3 m | 135,4 m | 1,07 |
+| O3 : + Pitot et vent (étape 5) | 5,8 m | 14,8 m | 35,5 m | 0,74 |
+| O4 : + vent quasi figé sans GNSS | 3,8 m | 6,9 m | 16,9 m | 0,68 |
+
+![Perte du GNSS](docs/img/step6_outage.png)
+
+En inertiel pur (O1), l'erreur de cap et le biais de l'accéléromètre sont intégrés deux fois, et l'erreur croît avec le carré du temps : 85 m après une minute. Le magnétomètre (O2) tient le cap, mais pas le biais de l'accéléromètre. Avec le Pitot (O3), la vitesse sol vient de la vitesse air et du vent estimé avant la perte. L'erreur croît alors à peu près linéairement, au rythme de l'erreur sur le vent : 14,8 m après 60 s. Dans les quatre cas, l'incertitude annoncée suit l'erreur réelle (NEES entre 0,7 et 1,2), et le GNSS est accepté dès son retour.
+
+O4 va plus loin. Sans GNSS, le vent n'est plus observable, et sa marche aléatoire de 0,1 m/s/√s ne sert plus qu'à laisser le filtre expliquer sa propre dérive par un changement de vent. O4 la réduit à 0,01 tant qu'aucune position GNSS n'a été acceptée depuis 1 s, et l'erreur est divisée par deux. La section suivante montre ce que ça coûte.
+
+### Saut GNSS de 15 m
+
+<!-- source: docs/step6_results.md -->
+| De 320 à 350 s, pendant que le vent tourne | Erreur max pendant | NEES pendant | Erreur max après | GNSS rejeté pendant |
+|---|---|---|---|---|
+| J1 : sans test d'innovation | 4,4 m | 7,5 | 3,9 m | 0,0 % |
+| J2 : avec test, vent de l'étape 5 | 7,7 m | 1,2 | 3,8 m | 99,9 % |
+| J3 : avec test, vent quasi figé sans GNSS, sans réinitialisation | 43,5 m | 40,1 | 413,8 m | 100,0 % |
+| J4 : comme J3, réinitialisation sur le GNSS après 45 s | 43,5 m | 40,1 | 84,5 m | 100,0 % |
+| J5 : comme J2, réinitialisation après 10 s | 15,3 m | 49,3 | 15,2 m | 33,4 % |
+
+![Test d'innovation](docs/img/step6_gating.png)
+
+**J1.** Sans test, le filtre suit le saut en partie. Les états de biais GNSS de l'étape 4 en absorbent la plus grande part, d'où seulement 4,4 m d'erreur, mais le filtre se croit précis à 1 m (NEES de 7,5).
+
+**J2.** Le test rejette toutes les positions décalées, et le filtre navigue à l'estime pendant 30 s, comme dans la perte GNSS. L'erreur monte à 7,7 m, mais le filtre l'annonce.
+
+**J3.** C'est le défaut d'O4. Le saut arrive pendant la rotation du vent. Avec le vent quasi figé, le filtre attribue l'écart au Pitot à sa vitesse au lieu du vent, et sa navigation à l'estime dérive. Il reste pourtant sûr de lui. Quand le GNSS redevient correct à 350 s, l'écart est trop grand pour le test, et le GNSS est rejeté jusqu'à la fin du vol : 414 m d'erreur à l'atterrissage. Un test d'innovation sur un filtre trop confiant ne protège plus, il enferme le filtre dans son erreur.
+
+**J4 et J5.** La réinitialisation sur le GNSS sort le filtre de ce blocage, et son délai est un compromis. À 45 s (J4), le filtre récupère, mais après avoir atteint 84 m. À 10 s (J5), il accepte le saut au bout de 10 s et garde 15 m d'erreur jusqu'à sa fin. Avec un seul GNSS, rien ne distingue un GNSS qui saute d'une navigation à l'estime qui dérive. Le délai fixe la durée pendant laquelle on fait confiance à la navigation à l'estime. J'ai pris 45 s, d'après O3 (15 m après 60 s).
+
+Je garde donc le modèle de vent de l'étape 5 (O3, J2) et pas l'astuce d'O4. Elle gagne 8 m sur une perte GNSS isolée, mais elle rend le filtre trop confiant dès que le vent change pendant la panne.
+
+### Perturbation magnétique
+
+<!-- source: docs/step6_results.md -->
+| De 170 à 230 s, en ligne droite | Erreur de cap max | NEES attitude | Magnétomètre rejeté pendant |
+|---|---|---|---|
+| M1 : perturbation de 0,058 G, sans test | 7,75° | 9982 | 0,0 % |
+| M2 : perturbation de 0,058 G, avec test | 0,51° | 1,1 | 100,0 % |
+| M3 : perturbation de 0,009 G, avec test | 1,50° | 289 | 1,6 % |
+
+Une perturbation de 0,058 G (12 % du champ terrestre) fausse le cap de 7,75° sans test (M1). Avec le test (M2), elle est rejetée en entier. Le cap dérive alors lentement sur le gyroscope, jusqu'à 0,5°, et le filtre l'annonce.
+
+Une perturbation de 0,009 G (2 % du champ, M3) passe sous le seuil : 1,6 % des mesures seulement sont rejetées. Le cap se décale de 1,5° alors que le filtre annonce 0,1°. Le test ne voit que ce qui est grand devant le bruit. Pour un biais petit et durable, il faudrait un autre détecteur : la norme et l'inclinaison du champ mesuré, ou la comparaison avec le cap déduit du GNSS en virage.
+
+### Vent et blocage du Pitot
+
+<!-- source: docs/step6_results.md -->
+| Rotation du vent de 300 à 360 s, sans panne | Erreur de vent max | NEES vent | Erreur de vent après 400 s | Pitot rejeté |
+|---|---|---|---|---|
+| O3 : marche aléatoire 0,1 (étape 5) | 0,17 m/s | 0,6 | 0,12 m/s | 0,1 % |
+| W1 : marche aléatoire 0,01, sans protection | 3,43 m/s | 845 | 1,86 m/s | 73,0 % |
+| W2 : marche aléatoire 0,01, avec protection | 1,83 m/s | 168 | 0,04 m/s | 10,0 % |
+
+![Blocage du Pitot](docs/img/step6_wind.png)
+
+Si une marche aléatoire faible améliore la navigation à l'estime, pourquoi ne pas la garder tout le temps ? Avec 0,01 m/s/√s (W1), le vent estimé ne suit plus la rotation. Les innovations du Pitot dépassent le seuil et sont rejetées, et le vent ne peut plus être corrigé : il reste faux de 1,9 m/s jusqu'à la fin du vol. C'est le même blocage que J3, sur un autre capteur. La protection (W2) réinitialise le vent après 5 s de rejet. Le filtre récupère, mais il reste trop confiant pendant toute la rotation (NEES de 168). La marche aléatoire de 0,1 de l'étape 5 est la seule des trois qui reste cohérente.
+
+Le code est dans `src/navsim/faults.py` (pannes), `src/navsim/eskf.py` (test d'innovation, réinitialisation sur le GNSS) et `src/navsim/fusion.py` (protections, marche aléatoire sans GNSS).
+
+### Écarts rencontrés
+
+- **Une panne à la fois ne suffit pas.** O4 était la meilleure configuration sur la perte GNSS seule. Son défaut n'est apparu qu'avec un saut GNSS tombé pendant la rotation du vent, que j'avais placé là sans y penser.
+- **La réinitialisation du vent faisait planter le filtre.** La covariance initiale du vent de l'étape 5 supposait un dérapage exactement nul. Le vent de travers y était alors une combinaison exacte des erreurs de vitesse et de cap, et `P` devenait singulière. Le démarrage passait de justesse, la réinitialisation en vol non. J'ai ajouté une incertitude de 2° sur le dérapage, ce qui change les résultats de l'étape 5 d'au plus 0,02° de cap.
+- **Le premier test du blocage GNSS ne le reproduisait pas.** J'avais mis un changement de vent rapide (4 m/s en 10 s). L'IMU le sent, le Pitot est rejeté, et la navigation à l'estime reste bonne. Le blocage n'apparaît qu'avec un changement lent : le Pitot reste accepté et tire la vitesse vers une valeur fausse. Le test utilise maintenant une rotation sur 60 s, comme la mission.
+
+Les vibrations, prévues au départ dans cette étape, ne sont pas encore simulées.
 
 ## Vérification
 
@@ -408,7 +503,7 @@ Une bonne partie du code et des tests de ce dépôt a été écrite avec un assi
   - des formules fermées pour le budget d'erreur et la latence.
 - **Propriétés** (`tests/test_properties.py`, hypothesis). Des invariants sont tirés sur des centaines d'entrées aléatoires. Ce test a trouvé une covariance singulière dans le filtre de l'étape 1, pour une dérive baro positive mais minuscule.
 - **Tests métamorphiques.** Le même vol fait avec un cap initial tourné de 90° doit donner les mêmes erreurs, tournées de 90°.
-- **Tests de mutation** (`scripts/mutation_check.py`). Trente-quatre bugs plausibles sont injectés un par un dans une copie du dépôt, et la suite de tests doit les détecter. La première exécution a révélé deux faiblesses des tests, corrigées depuis. À l'étape 5, une mutation que je croyais sans effet a révélé un vrai bug, présent depuis l'étape 3 : le signe de la jacobienne de réinitialisation de l'EKF. L'histoire est dans [`docs/verification.md`](docs/verification.md#m05--la-mutation-qui-avait-raison). Le rapport est dans [`docs/mutation_report.md`](docs/mutation_report.md).
+- **Tests de mutation** (`scripts/mutation_check.py`). Quarante et un bugs plausibles sont injectés un par un dans une copie du dépôt, et la suite de tests doit les détecter. La première exécution a révélé deux faiblesses des tests, corrigées depuis. À l'étape 5, une mutation que je croyais sans effet a révélé un vrai bug, présent depuis l'étape 3 : le signe de la jacobienne de réinitialisation de l'EKF. L'histoire est dans [`docs/verification.md`](docs/verification.md#m05--la-mutation-qui-avait-raison). Le rapport est dans [`docs/mutation_report.md`](docs/mutation_report.md).
 - **Chiffres du README.** Chaque tableau de résultats de ce fichier est vérifié contre le fichier généré correspondant (`tests/test_docs.py`).
 - **CI.** ruff (règles orientées bugs), la suite complète avec la couverture de code, et la provenance à chaque push ; les mutations chaque semaine.
 
@@ -432,8 +527,9 @@ src/navsim/
   strapdown.py        étape 2 : intégration strapdown, budget d'erreur analytique
   gnss.py             étapes 3-4 : récepteur GNSS, erreurs corrélées, latence
   aiding.py           étape 5 : baromètre, magnétomètre, Pitot, modèle de vent
-  eskf.py             étapes 3-5 : EKF à état d'erreur, 15 à 24 états selon les capteurs
-  fusion.py           étapes 3-5 : boucle de fusion en Monte-Carlo, latence, initialisation
+  faults.py           étape 6 : pannes injectées dans les mesures
+  eskf.py             étapes 3-6 : EKF à état d'erreur, 15 à 24 états, test d'innovation
+  fusion.py           étapes 3-6 : boucle de fusion en Monte-Carlo, latence, pannes, protections
   provenance.py       empreinte du code et des paramètres de chaque résultat
 scripts/
   step1_altitude.py   figures et tableau de l'étape 1
@@ -441,6 +537,7 @@ scripts/
   step3_eskf.py       figures et tableau de l'étape 3
   step4_gnss.py       figures et tableau de l'étape 4
   step5_aiding.py     figures et tableaux de l'étape 5
+  step6_degraded.py   figures, tableaux et vidéo de l'étape 6
   check_provenance.py vérifie que les résultats de docs/ correspondent au code
   mutation_check.py   injecte des bugs connus et vérifie que les tests les détectent
 tests/
@@ -449,6 +546,7 @@ tests/
   test_step3.py       jacobienne F contre propagation non linéaire, cohérence, observabilité du cap
   test_step4.py       erreur GNSS corrélée, états de biais, horizon retardé contre latence ignorée
   test_step5.py       vent dans la vérité, capteurs, jacobiennes de mesure, biais magnéto, cohérence
+  test_step6.py       pannes, test d'innovation (taux de fausses alarmes), blocages et protections
   test_oracles.py     comparaisons à des références indépendantes (scipy, EDO, moindres carrés...)
   test_properties.py  invariants (hypothesis) et tests métamorphiques
   test_docs.py        chiffres du README contre les résultats générés
@@ -463,6 +561,5 @@ docs/
 
 ## Suite
 
-6. Modes dégradés : perte GNSS, perturbation magnétique, vibrations. Gating des innovations et détection de capteur défaillant.
 7. Rejeu de logs de vol PX4 réels et comparaison avec l'EKF2 embarqué.
 8. Portage C++ (matrices de taille fixe, sans allocation dynamique) et comparaison avec la référence Python sur les mêmes logs.

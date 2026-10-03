@@ -22,11 +22,11 @@ GNSS réaliste : bruit blanc 0.5 m / 1.0 m, erreur corrélée 1.4 m / 2.8 m (τ 
 
 ## Provenance
 
-- Empreinte du code : `fae41fbd8c09e34c` (13 fichiers, calculée par le script au moment de l'écriture)
+- Empreinte du code : `dbf560674c48fca8` (14 fichiers, calculée par le script au moment de l'écriture)
 - Commit git : non disponible
 - Graine : 2026, 50 runs
 - Paramètres : `fba752b9b96fefde` (détail dans le fichier JSON voisin)
 - Python 3.13.15, numpy 2.5.3, scipy 1.18.1
-- Généré le 2026-10-02T16:45:10Z
+- Généré le 2026-10-02T19:38:14Z
 
 `python scripts/check_provenance.py` compare cette empreinte au code actuel.

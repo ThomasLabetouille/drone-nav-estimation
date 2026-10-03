@@ -2,7 +2,7 @@
 
 Généré par `scripts/mutation_check.py`. Chaque ligne est un bug plausible introduit dans une copie du dépôt, puis la suite de tests est lancée sur cette copie (sans le test de provenance, qui détecterait trivialement toute modification).
 
-**33 mutations détectées sur 34.**
+**40 mutations détectées sur 41.**
 
 | | Fichier | Bug simulé | Résultat | Détecté par |
 |---|---|---|---|---|
@@ -40,6 +40,13 @@ Généré par `scripts/mutation_check.py`. Chaque ligne est un bug plausible int
 | M32 | `aiding.py` | marche aléatoire du biais magnétomètre en mauvaise unité | détecté | `tests/test_step5.py::test_magnetometer_stream_statistics` |
 | M33 | `aiding.py` | signe du cap magnétique | détecté | `tests/test_step5.py::test_magnetometer_heading_recovers_the_true_heading` |
 | M34 | `fusion.py` | signe de la corrélation vent / cap dans la covariance initiale du vent | détecté | `tests/test_step5.py::test_initial_wind_covariance_matches_monte_carlo` |
+| M35 | `eskf.py` | test d'innovation inversé | détecté | `tests/test_step6.py::test_gate_rejects_outliers_and_leaves_the_filter_untouched` |
+| M36 | `eskf.py` | mesure rejetée mais fusionnée quand même | détecté | `tests/test_step6.py::test_gate_rejects_outliers_and_leaves_the_filter_untouched` |
+| M37 | `fusion.py` | degrés de liberté du test GNSS (position seule au lieu de position + vitesse) | détecté | `tests/test_step6.py::test_gnss_false_alarm_rate_in_flight` |
+| M38 | `fusion.py` | protection contre le blocage du Pitot désactivée | détecté | `tests/test_step6.py::test_wind_lockout_and_its_protection` |
+| M39 | `fusion.py` | marche aléatoire du vent réduite avec GNSS au lieu de sans | détecté | `tests/test_step6.py::test_gnss_lockout_and_its_protection` |
+| M40 | `fusion.py` | perte GNSS simulée ignorée | détecté | `tests/test_step6.py::test_outage_is_applied_and_gnss_is_accepted_again` |
+| M41 | `aiding.py` | perturbation magnétique simulée ignorée | détecté | `tests/test_step6.py::test_strong_magnetic_disturbance_is_rejected` |
 
 ## Mutations qui survivent, et pourquoi
 
@@ -47,5 +54,5 @@ Généré par `scripts/mutation_check.py`. Chaque ligne est un bug plausible int
 
 ## Provenance
 
-- Empreinte des sources et des tests : `fb4fe3ea3cf48e50` (24 fichiers)
+- Empreinte des sources et des tests : `5a2300792eabb998` (26 fichiers)
 - Toute modification d'un module ou d'un test rend ce rapport périmé (`scripts/check_provenance.py`) : relancer le script.
