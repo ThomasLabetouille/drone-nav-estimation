@@ -2,7 +2,11 @@
 
 [![tests](https://github.com/ThomasLabetouille/drone-nav-estimation/actions/workflows/tests.yml/badge.svg)](https://github.com/ThomasLabetouille/drone-nav-estimation/actions/workflows/tests.yml)
 
-Simulation de capteurs et estimation d'état pour un drone à voilure fixe, en Python, avec un portage C++ prévu une fois les algorithmes validés.
+Estimation de la position, de la vitesse et de l'attitude d'un drone à voilure fixe à partir de ses capteurs : centrale inertielle (IMU), GNSS, magnétomètre, baromètre et tube de Pitot. Le cœur est un filtre de Kalman étendu à état d'erreur. Je l'ai écrit et validé en Python sur des vols simulés, rejoué sur trois vrais vols PX4 en le comparant à l'EKF2 qui volait à bord, puis porté en C++ pour l'embarqué.
+
+![Perte du GNSS en vol](docs/img/step6_outage.gif)
+
+Sur cette animation (étape 6), le GNSS est coupé pendant 60 s en pleine mission. Le trait noir est la vraie trajectoire. En orange, le filtre n'a que l'IMU pendant la coupure, et sa position dérive de 74 m. En bleu, il garde le magnétomètre, le baromètre et le Pitot et estime le vent : il dérive de 13 m. Les ellipses sont l'incertitude que chaque filtre annonce. La vidéo en meilleure qualité est dans [`docs/img/step6_outage.mp4`](docs/img/step6_outage.mp4).
 
 Le projet avance par étapes. Chacune ajoute des capteurs ou des états au filtre et se valide avant de passer à la suivante. Les huit étapes sont faites :
 
@@ -15,7 +19,7 @@ Le projet avance par étapes. Chacune ajoute des capteurs ou des états au filtr
 7. le rejeu de trois vrais vols PX4, comparé à l'EKF2 embarqué, avec ce que ces vols ont révélé sur leurs capteurs ;
 8. le portage du filtre en C++ (matrices de taille fixe, aucune allocation dynamique), identique à la version Python à l'arrondi près sur les vols réels.
 
-![Estimation d'altitude sur une mission complète](docs/img/step1_estimation.png)
+Sur les deux vols réels de l'avion A, la position du filtre reste à 0,2 à 0,5 m (RMS) de celle de l'EKF2. Le C++ donne les mêmes états que Python à 10⁻¹¹ m près, en 4 µs par échantillon traité sur un PC de bureau. Le code a été écrit avec un assistant IA. La section [Vérification](#vérification) décrit comment je m'assure qu'il fait ce qu'il dit : oracles indépendants, tests de mutation, provenance de chaque chiffre.
 
 ## Lancer
 
@@ -38,6 +42,8 @@ python scripts/mutation_check.py       # les tests détectent-ils des bugs connu
 Les figures sont écrites dans `docs/img/`, les tableaux dans `docs/stepN_results.md`.
 
 ## Étape 1 : altitude, accéléromètre + baromètre
+
+![Estimation d'altitude sur une mission complète](docs/img/step1_estimation.png)
 
 ### Mission simulée
 
