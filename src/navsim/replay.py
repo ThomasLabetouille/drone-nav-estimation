@@ -122,18 +122,11 @@ def _quat_from_accel_mag(f_b, m_b, declination):
     return quat_from_euler(roll, pitch, float(yaw)), roll, pitch, float(yaw)
 
 
-def run(data: LogData, cfg: ReplayConfig, t_start: float | None = None, t_end: float | None = None) -> ReplayLog:
-    """Replay one flight. Starts at the first GNSS fix after t_start."""
-    ad = cfg.aiding
-    dt0 = float(np.median(data.dt_imu))
-    gnss_cfg = GNSSConfig(pos_sigma_h=cfg.gnss_floor[0], pos_sigma_v=cfg.gnss_floor[1],
-                          vel_sigma_h=cfg.gnss_floor[2], vel_sigma_v=cfg.gnss_floor[2])
-    ekf = ErrorStateEKF(cfg.imu, gnss_cfg, dt0, 1, aiding=ad)
-    n = ekf.n
-    if cfg.gate_prob is not None:
-        dof = {"gnss": 6, "baro": 1, "mag": 3, "mag_heading": 1, "pitot": 1, "sideslip": 1}
-        ekf.gates = {k: chi2.ppf(cfg.gate_prob, d) for k, d in dof.items()}
-
+def setup(data: LogData, cfg: ReplayConfig, t_start: float | None = None, t_end: float | None = None) -> dict:
+    """Everything the replay decides before the first prediction: start and
+    end times, the data for the initial attitude, and the ordered queue of
+    measurements (time of validity, kind, index). Shared with the C++ port
+    (step 8), so that both see exactly the same stream."""
     t_gnss = data.t_gnss - cfg.gnss_delay
     # the first fix with at least init_window_s of IMU data before it
     t_min = data.t_imu[0] + cfg.init_window_s
@@ -149,6 +142,38 @@ def run(data: LogData, cfg: ReplayConfig, t_start: float | None = None, t_end: f
         km = int(np.clip(np.searchsorted(data.t_mag, t0), 0, len(data.t_mag) - 1))
         m_b = data.mag[km]
     m_n = np.asarray(data.field_ned if cfg.mag is None else cfg.mag.field_ned)
+    baro0 = None
+    if cfg.baro is not None and len(data.t_baro):
+        kb = int(np.clip(np.searchsorted(data.t_baro, t0), 0, len(data.t_baro) - 1))
+        baro0 = float(data.baro_alt[kb])
+
+    events = []
+    for name, ts in (("baro", data.t_baro if cfg.baro else ()), ("mag", data.t_mag if cfg.mag else ()),
+                     ("tas", data.t_tas if cfg.pitot else ())):
+        ts = np.asarray(ts)
+        idx = np.flatnonzero((ts > t0) & (ts <= t1))
+        events += [(ts[i], name, i) for i in idx]
+    gi = np.flatnonzero((t_gnss > t0) & (t_gnss <= t1))
+    events += [(t_gnss[i], "gnss", i) for i in gi]
+    events.sort(key=lambda e: e[0])
+    return {"t_gnss": t_gnss, "t0": t0, "t1": t1, "g0": g0, "f_b": f_b, "m_b": m_b, "m_n": m_n, "baro0": baro0,
+            "events": events, "n_gnss": len(gi), "k0": int(np.searchsorted(data.t_imu, t0, side="right"))}
+
+
+def run(data: LogData, cfg: ReplayConfig, t_start: float | None = None, t_end: float | None = None) -> ReplayLog:
+    """Replay one flight. Starts at the first GNSS fix after t_start."""
+    ad = cfg.aiding
+    dt0 = float(np.median(data.dt_imu))
+    gnss_cfg = GNSSConfig(pos_sigma_h=cfg.gnss_floor[0], pos_sigma_v=cfg.gnss_floor[1],
+                          vel_sigma_h=cfg.gnss_floor[2], vel_sigma_v=cfg.gnss_floor[2])
+    ekf = ErrorStateEKF(cfg.imu, gnss_cfg, dt0, 1, aiding=ad)
+    n = ekf.n
+    if cfg.gate_prob is not None:
+        dof = {"gnss": 6, "baro": 1, "mag": 3, "mag_heading": 1, "pitot": 1, "sideslip": 1}
+        ekf.gates = {k: chi2.ppf(cfg.gate_prob, d) for k, d in dof.items()}
+
+    st = setup(data, cfg, t_start, t_end)
+    t0, t1, g0, f_b, m_b, m_n, events = (st[k] for k in ("t0", "t1", "g0", "f_b", "m_b", "m_n", "events"))
     q0, _, _, _ = _quat_from_accel_mag(f_b, m_b, np.arctan2(m_n[1], m_n[0]))
 
     tilt, yaw = np.radians(cfg.tilt_sigma_deg), np.radians(cfg.yaw_sigma_deg)
@@ -168,24 +193,12 @@ def run(data: LogData, cfg: ReplayConfig, t_start: float | None = None, t_end: f
         extra_var.append([np.radians(cfg.sideslip_offset_sigma0_deg) ** 2])
     P0 = np.diag(np.concatenate([d, *extra_var])) if extra_var else np.diag(d)
     extra0 = np.zeros((1, n - 15))
-    if "baro_bias" in ekf.blocks and len(data.t_baro):
-        kb = int(np.clip(np.searchsorted(data.t_baro, t0), 0, len(data.t_baro) - 1))
+    if "baro_bias" in ekf.blocks and st["baro0"] is not None:
         sl = ekf.blocks["baro_bias"]
-        extra0[0, sl.start - 15] = data.baro_alt[kb] - (-data.gnss_p[g0, 2])
+        extra0[0, sl.start - 15] = st["baro0"] - (-data.gnss_p[g0, 2])
     ekf.initialise(data.gnss_p[g0][None], data.gnss_v[g0][None], q0[None], P0, extra=extra0)
 
-    # Measurement queues (time of validity, kind, index)
-    events = []
-    for name, ts in (("baro", data.t_baro if cfg.baro else ()), ("mag", data.t_mag if cfg.mag else ()),
-                     ("tas", data.t_tas if cfg.pitot else ())):
-        ts = np.asarray(ts)
-        idx = np.flatnonzero((ts > t0) & (ts <= t1))
-        events += [(ts[i], name, i) for i in idx]
-    gi = np.flatnonzero((t_gnss > t0) & (t_gnss <= t1))
-    events += [(t_gnss[i], "gnss", i) for i in gi]
-    events.sort(key=lambda e: e[0])
-
-    E = len(gi) + 1
+    E = st["n_gnss"] + 1
     log = ReplayLog(t=np.empty(E), p=np.empty((E, 3)), v=np.empty((E, 3)), q=np.empty((E, 4)),
                     sigma=np.empty((E, n)), blocks=dict(ekf.blocks), extra=np.empty((E, n - 15)),
                     bg=np.empty((E, 3)), ba=np.empty((E, 3)), gnss=np.empty((E, 6)),
@@ -211,7 +224,7 @@ def run(data: LogData, cfg: ReplayConfig, t_start: float | None = None, t_end: f
     wind_on = False
     last_fused = t0
     pitot_rejected_since = None
-    k = int(np.searchsorted(data.t_imu, t0, side="right"))
+    k = st["k0"]
     ev = 0
     while k < len(data.t_imu) and data.t_imu[k] <= t1:
         ekf.predict(data.dtheta[k][None], data.dvel[k][None], data.dt_imu[k])

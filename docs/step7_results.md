@@ -69,11 +69,11 @@ Généré par `scripts/step7_replay.py` sur des logs publics de review.px4.io. �
 
 ## Provenance
 
-- Empreinte du code : `c1649691a8762077` (16 fichiers, calculée par le script au moment de l'écriture)
+- Empreinte du code : `0f872f188924daab` (16 fichiers, calculée par le script au moment de l'écriture)
 - Commit git : non disponible
 - Graine : 0, 1 runs
 - Paramètres : `9d47ac707f3dded2` (détail dans le fichier JSON voisin)
 - Python 3.13.15, numpy 2.5.3, scipy 1.18.1
-- Généré le 2026-10-03T08:49:50Z
+- Généré le 2026-10-04T13:31:16Z
 
 `python scripts/check_provenance.py` compare cette empreinte au code actuel.

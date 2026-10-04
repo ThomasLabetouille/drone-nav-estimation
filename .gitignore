@@ -10,3 +10,4 @@ venv/
 .hypothesis/
 .coverage
 coverage.xml
+cpp/build/

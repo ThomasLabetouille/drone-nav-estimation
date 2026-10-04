@@ -4,7 +4,7 @@
 
 Simulation de capteurs et estimation d'état pour un drone à voilure fixe, en Python, avec un portage C++ prévu une fois les algorithmes validés.
 
-Le projet avance par étapes. Chacune ajoute des capteurs ou des états au filtre et se valide avant de passer à la suivante. Sept étapes sont faites :
+Le projet avance par étapes. Chacune ajoute des capteurs ou des états au filtre et se valide avant de passer à la suivante. Les huit étapes sont faites :
 
 1. la voie verticale : un filtre de Kalman qui fusionne un accéléromètre et un baromètre ;
 2. la navigation inertielle en 3D : trajectoire de voilure fixe, IMU 6 axes, intégration strapdown, et l'erreur d'une IMU MEMS seule comparée à son budget analytique ;
@@ -12,7 +12,8 @@ Le projet avance par étapes. Chacune ajoute des capteurs ou des états au filtr
 4. un GNSS réaliste : erreurs corrélées dans le temps, estimées par trois états de plus, et 150 ms de latence gérée par un filtre à horizon retardé ;
 5. les capteurs d'aide d'un drone à voilure fixe, dans 5 m/s de vent : magnétomètre, baromètre, tube de Pitot, et l'estimation du vent ;
 6. les modes dégradés : perte et saut du GNSS, perturbation magnétique, test d'innovation et blocages qu'il peut provoquer ;
-7. le rejeu de trois vrais vols PX4, comparé à l'EKF2 embarqué, avec ce que ces vols ont révélé sur leurs capteurs.
+7. le rejeu de trois vrais vols PX4, comparé à l'EKF2 embarqué, avec ce que ces vols ont révélé sur leurs capteurs ;
+8. le portage du filtre en C++ (matrices de taille fixe, aucune allocation dynamique), identique à la version Python à l'arrondi près sur les vols réels.
 
 ![Estimation d'altitude sur une mission complète](docs/img/step1_estimation.png)
 
@@ -20,7 +21,7 @@ Le projet avance par étapes. Chacune ajoute des capteurs ou des états au filtr
 
 ```bash
 pip install -e ".[dev]"                # dont pyulog et pygeomag pour l'étape 7
-python -m pytest                       # environ neuf minutes
+python -m pytest                       # environ onze minutes
 python scripts/step1_altitude.py       # étape 1, ~45 s
 python scripts/step2_strapdown.py      # étape 2, ~50 s
 python scripts/step3_eskf.py           # étape 3, ~2 min 30
@@ -28,9 +29,10 @@ python scripts/step4_gnss.py           # étape 4, ~5 min
 python scripts/step5_aiding.py         # étape 5, ~40 min (--runs 10 : ~10 min)
 python scripts/step6_degraded.py       # étape 6 et sa vidéo, ~1 h (--runs 10, --no-video)
 python scripts/step7_replay.py         # étape 7, ~20 min, logs à télécharger (liens dans le script)
+python scripts/step8_cpp.py            # étape 8 : C++ contre Python sur les mêmes logs, ~5 min (CMake, Eigen)
 python scripts/step2_strapdown.py --runs 100   # plus rapide, moins de Monte-Carlo
 python scripts/check_provenance.py     # les résultats de docs/ correspondent-ils au code actuel ?
-python scripts/mutation_check.py       # les tests détectent-ils des bugs connus ? ~1 h
+python scripts/mutation_check.py       # les tests détectent-ils des bugs connus ? ~1 h 30
 ```
 
 Les figures sont écrites dans `docs/img/`, les tableaux dans `docs/stepN_results.md`.
@@ -588,6 +590,48 @@ Le code est dans `src/navsim/ulog_reader.py` (lecture des logs), `src/navsim/rep
 - **La projection locale.** Ma première version projetait les positions GNSS sur un plan tangent à l'ellipsoïde WGS84. PX4 utilise une projection azimutale équidistante sur une sphère de 6 371 km. Le passage à la projection de PX4 a ramené l'écart horizontal à l'EKF2 de 0,55 à 0,45 m sur A1, et de 0,43 à 0,19 m sur A2.
 - **Les horodatages.** Dans ces logs, `timestamp_sample` vaut zéro pour le GNSS. Le lecteur ne l'utilise que s'il est rempli.
 
+## Étape 8 : portage C++
+
+![Écart C++ / Python](docs/img/step8_agreement.png)
+
+Le filtre tourne maintenant aussi en C++17 (`cpp/`). C'est la configuration rejouée sur les vrais vols à l'étape 7 (R3) : 20 états, avec la dérive baro, le vent, l'échelle de vitesse air, le décalage de dérapage et le cap magnétique.
+
+- **Matrices de taille fixe.** Toutes les matrices sont des types Eigen dont la taille est connue à la compilation (`Matrix<double, 20, 20>`, `Matrix<double, 6, 20>`...). Le filtre ne fait aucune allocation dynamique une fois construit.
+- **Vérification de l'absence d'allocation.** `cpp/tests/test_eskf.cpp` le vérifie de deux façons indépendantes : la garde d'Eigen (`EIGEN_RUNTIME_NO_MALLOC`), qui arrête le programme à la moindre allocation interne, et un `operator new` global qui compte chaque allocation pendant 8 000 prédictions et 200 mises à jour de chaque type.
+- **Une boucle d'autopilote.** La lecture des fichiers alloue, le filtre non. `nav_replay` reçoit un flux d'événements (échantillon IMU, position GNSS, baro, magnétomètre, vitesse air) et les traite un par un.
+- **Le même flux que Python.** Python décide de tout ce qui précède la première prédiction (instant de départ, données d'initialisation, ordre des mesures) avec la même fonction que le rejeu de l'étape 7 (`replay.setup`), et l'écrit pour le programme C++. Les deux versions voient donc exactement les mêmes entrées, dans le même ordre.
+
+Chaque fonction C++ suit sa version Python ligne à ligne, et le commentaire de tête la nomme : prédiction et matrice de transition, forme de Joseph, réinitialisation, mesures, initialisation du vent, protections contre le blocage.
+
+<!-- source: docs/step8_results.md -->
+| Vol | Rejeu | Écart de position max | Écart d'attitude max | Décisions du test différentes | Python | C++ (filtre seul) | C++ par événement |
+|---|---|---|---|---|---|---|---|
+| A1 | vol complet | 5,7·10⁻¹⁴ m | 5,6·10⁻¹⁵ rad | 0 sur 9516 | 55,7 s | 0,59 s | 3,91 µs |
+| A2 | vol complet | 5,7·10⁻¹⁴ m | 3,3·10⁻¹⁵ rad | 0 sur 9828 | 47,9 s | 0,53 s | 3,91 µs |
+| B | vol complet | 3,7·10⁻¹³ m | 1,1·10⁻¹⁴ rad | 0 sur 11782 | 45,4 s | 0,55 s | 4,16 µs |
+| B | pertes GNSS de 30 s | 9,2·10⁻¹² m | 1,3·10⁻¹⁴ rad | 0 sur 10382 | 46,1 s | 0,52 s | 3,96 µs |
+
+Sur les trois vols réels, les deux versions donnent les mêmes états à l'arrondi près : 10⁻¹⁴ à 10⁻¹¹ m en position, 10⁻¹⁴ rad en attitude, sur dix minutes de vol et 130 000 à 150 000 événements. Elles prennent aussi les mêmes décisions à chaque test d'innovation. Les écarts qui restent viennent de l'ordre des additions dans les produits de matrices (NumPy et Eigen ne somment pas dans le même ordre). Ils restent au niveau de l'arrondi d'une position de quelques centaines de mètres et ne grossissent pas avec le temps, sauf à la toute fin du vol B, pendant l'impact.
+
+Le C++ traite un vol de dix minutes en un peu plus d'une demi-seconde, 70 à 80 fois plus vite que Python, soit environ 4 µs par événement sur un PC de bureau. Une prédiction prend 3,4 µs et une mise à jour GNSS 9,5 µs. Le budget d'un autopilote à 200 Hz est de 5 ms par échantillon, avec un processeur bien plus lent. Le code n'a pas encore tourné sur une carte embarquée.
+
+`tests/test_step8.py` compile le C++ dans un dossier neuf et compare les deux versions sur des vols simulés qui passent par toutes les branches de la boucle : perte GNSS, rejets, remise sur le GNSS, réinitialisation du vent après un Pitot faux de 30 %. Sur un vol simulé de 240 s, l'écart était de 3·10⁻¹² m. La CI compile le C++ avec tous les avertissements traités comme des erreurs (`-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror`) et lance ses tests unitaires.
+
+Le code est dans `cpp/include/navcpp/` (rotations, interface du filtre), `cpp/src/eskf.cpp` (le filtre), `cpp/src/replay_main.cpp` (la boucle de rejeu) et `src/navsim/cpp_bridge.py` (compilation, export du flux, lecture des résultats).
+
+```bash
+sudo apt install libeigen3-dev              # ou l'équivalent : Eigen 3.3 ou plus récent
+cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Release && cmake --build cpp/build
+ctest --test-dir cpp/build --output-on-failure
+python scripts/step8_cpp.py                 # comparaison sur les vols réels, ~5 min
+```
+
+### Écarts rencontrés
+
+- **Le produit vectoriel.** La première compilation échouait à l'édition de liens : `cross()` est dans le module `Eigen/Geometry`, que `Eigen/Core` n'inclut pas.
+- **Le compteur d'allocations.** Mon premier test de ce compteur utilisait `new[]`, et GCC 13 refusait la paire `new[]` / `free` avec `-Werror`. Le test utilise maintenant un `std::vector`, qui passe par l'`operator new` surchargé.
+- **Le dossier de compilation copié.** Les tests de mutation copient le dépôt avant d'y injecter un bug. Si la copie avait gardé `cpp/build`, CMake aurait refusé ce dossier, configuré pour un autre chemin. Le test compile donc toujours dans un dossier temporaire neuf, et la copie ignore `build`.
+
 ## Vérification
 
 Une bonne partie du code et des tests de ce dépôt a été écrite avec un assistant IA. Un test écrit en même temps que le code risque de partager ses erreurs, donc la vérification passe aussi par d'autres chemins. Le détail est dans [`docs/verification.md`](docs/verification.md).
@@ -601,7 +645,7 @@ Une bonne partie du code et des tests de ce dépôt a été écrite avec un assi
   - des formules fermées pour le budget d'erreur et la latence.
 - **Propriétés** (`tests/test_properties.py`, hypothesis). Des invariants sont tirés sur des centaines d'entrées aléatoires. Ce test a trouvé une covariance singulière dans le filtre de l'étape 1, pour une dérive baro positive mais minuscule.
 - **Tests métamorphiques.** Le même vol fait avec un cap initial tourné de 90° doit donner les mêmes erreurs, tournées de 90°.
-- **Tests de mutation** (`scripts/mutation_check.py`). Quarante-huit bugs plausibles sont injectés un par un dans une copie du dépôt, et la suite de tests doit les détecter. La première exécution a révélé deux faiblesses des tests, corrigées depuis. À l'étape 5, une mutation que je croyais sans effet a révélé un vrai bug, présent depuis l'étape 3 : le signe de la jacobienne de réinitialisation de l'EKF. L'histoire est dans [`docs/verification.md`](docs/verification.md#m05--la-mutation-qui-avait-raison). Le rapport est dans [`docs/mutation_report.md`](docs/mutation_report.md).
+- **Tests de mutation** (`scripts/mutation_check.py`). Cinquante-cinq bugs plausibles sont injectés, en Python et en C++, un par un dans une copie du dépôt, et la suite de tests doit les détecter. La première exécution a révélé deux faiblesses des tests, corrigées depuis. À l'étape 5, une mutation que je croyais sans effet a révélé un vrai bug, présent depuis l'étape 3 : le signe de la jacobienne de réinitialisation de l'EKF. L'histoire est dans [`docs/verification.md`](docs/verification.md#m05--la-mutation-qui-avait-raison). Le rapport est dans [`docs/mutation_report.md`](docs/mutation_report.md).
 - **Chiffres du README.** Chaque tableau de résultats de ce fichier est vérifié contre le fichier généré correspondant (`tests/test_docs.py`).
 - **CI.** ruff (règles orientées bugs), la suite complète avec la couverture de code, et la provenance à chaque push ; les mutations chaque semaine.
 
@@ -628,9 +672,15 @@ src/navsim/
   faults.py           étape 6 : pannes injectées dans les mesures
   ulog_reader.py      étape 7 : lecture des logs PX4 (ULog), projection locale, champ WMM
   replay.py           étape 7 : rejeu sur données enregistrées, réglage depuis les paramètres EKF2
+  cpp_bridge.py       étape 8 : compilation du C++, export du flux d'événements, lecture des résultats
   eskf.py             étapes 3-7 : EKF à état d'erreur, 15 à 26 états, test d'innovation
   fusion.py           étapes 3-6 : boucle de fusion en Monte-Carlo, latence, pannes, protections
   provenance.py       empreinte du code et des paramètres de chaque résultat
+cpp/
+  include/navcpp/     rotations et interface du filtre (types Eigen de taille fixe)
+  src/eskf.cpp        étape 8 : le filtre de l'étape 7 en C++
+  src/replay_main.cpp boucle de rejeu sur un flux d'événements
+  tests/test_eskf.cpp tests unitaires, dont l'absence d'allocation dynamique
 scripts/
   step1_altitude.py   figures et tableau de l'étape 1
   step2_strapdown.py  figures et tableau de l'étape 2
@@ -639,6 +689,7 @@ scripts/
   step5_aiding.py     figures et tableaux de l'étape 5
   step6_degraded.py   figures, tableaux et vidéo de l'étape 6
   step7_replay.py     rejeu des logs réels et comparaison avec l'EKF2
+  step8_cpp.py        portage C++ contre référence Python sur les logs réels
   check_provenance.py vérifie que les résultats de docs/ correspondent au code
   mutation_check.py   injecte des bugs connus et vérifie que les tests les détectent
 tests/
@@ -649,6 +700,7 @@ tests/
   test_step5.py       vent dans la vérité, capteurs, jacobiennes de mesure, biais magnéto, cohérence
   test_step6.py       pannes, test d'innovation (taux de fausses alarmes), blocages et protections
   test_step7.py       rejeu de logs simulés (intervalles irréguliers, autopilote monté de travers), lecteur ULog
+  test_step8.py       C++ contre Python, état par état, sur toutes les branches de la boucle
   data/               petit log PX4 réel du dépôt pyulog, pour tester le lecteur
   test_oracles.py     comparaisons à des références indépendantes (scipy, EDO, moindres carrés...)
   test_properties.py  invariants (hypothesis) et tests métamorphiques
@@ -664,4 +716,8 @@ docs/
 
 ## Suite
 
-8. Portage C++ (matrices de taille fixe, sans allocation dynamique) et comparaison avec la référence Python sur les mêmes logs.
+Le projet couvre les huit étapes prévues. Ce qui reste ouvert :
+
+- le baromètre qui dégrade la navigation à l'estime sur les vols réels (étape 7), dont je n'ai pas isolé le mécanisme ;
+- les vibrations, et un détecteur pour les perturbations magnétiques trop faibles pour le test d'innovation (étape 6) ;
+- le C++ sur une vraie carte (NuttX ou un microcontrôleur Cortex-M), avec ses temps de calcul en simple précision.

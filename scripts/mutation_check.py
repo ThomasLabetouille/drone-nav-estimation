@@ -200,11 +200,28 @@ MUTATIONS = (
     Mutation("M48", "src/navsim/ulog_reader.py", "east = k * np.cos(la) * np.sin(lo - lo0) * R_EARTH",
              "east = k * np.sin(lo - lo0) * R_EARTH", "cos(latitude) oublié dans la projection locale",
              ("tests/test_step7.py",)),
+    # --- step 8: C++ port ----------------------------------------------------------
+    Mutation("M49", "cpp/src/eskf.cpp", "Phi.block<3, 3>(IV, ITH) += -fx * dt;", "Phi.block<3, 3>(IV, ITH) += fx * dt;",
+             "C++ : signe du couplage vitesse / attitude dans F", ("tests/test_step8.py",)),
+    Mutation("M50", "cpp/src/eskf.cpp", "Gr.block<3, 3>(ITH, ITH) += 0.5 * skew(dth);",
+             "Gr.block<3, 3>(ITH, ITH) -= 0.5 * skew(dth);",
+             "C++ : signe de la jacobienne de réinitialisation (le bug de l'étape 5)", ("tests/test_step8.py",)),
+    Mutation("M51", "cpp/src/eskf.cpp", "H(0, IBETA) = -1.0;", "H(0, IBETA) = 1.0;",
+             "C++ : signe de l'état de décalage de dérapage", ("tests/test_step8.py",)),
+    Mutation("M52", "cpp/src/eskf.cpp", "rejected_ = gate > 0.0 && nis > gate;", "rejected_ = gate > 0.0 && nis < gate;",
+             "C++ : test d'innovation inversé", ("tests/test_step8.py",)),
+    Mutation("M53", "cpp/src/eskf.cpp", "J.col(ITH + 2) = -tas * u_perp;", "J.col(ITH + 2) = tas * u_perp;",
+             "C++ : signe de la corrélation vent / cap à l'initialisation du vent", ("tests/test_step8.py",)),
+    Mutation("M54", "cpp/src/eskf.cpp", "H(0, ITH) = std::tan(e[1]) * std::cos(e[2]);", "H(0, ITH) = 0.0;",
+             "C++ : couplage cap / inclinaison oublié dans la mesure de cap", ("tests/test_step8.py",)),
+    Mutation("M55", "cpp/src/replay_main.cpp", "if (c.pitot_reset_after >= 0.0 && t - pitot_rejected_since",
+             "if (false && t - pitot_rejected_since",
+             "C++ : protection contre le blocage du Pitot oubliée dans la boucle", ("tests/test_step8.py",)),
 )
 
 
 def copy_repo(dst: Path):
-    ignore = shutil.ignore_patterns(".git", "__pycache__", ".pytest_cache", "*.egg-info", ".hypothesis")
+    ignore = shutil.ignore_patterns(".git", "__pycache__", ".pytest_cache", "*.egg-info", ".hypothesis", "build")
     shutil.copytree(ROOT, dst, ignore=ignore)
 
 
@@ -312,7 +329,9 @@ def main():
         lines += [f"- **{m.id}** ({m.bug}) : {m.note}." for m in notes]
     lines.append("")
 
-    files = sorted((ROOT / "src" / "navsim").glob("*.py")) + sorted((ROOT / "tests").glob("*.py")) + [
+    files = sorted((ROOT / "src" / "navsim").glob("*.py")) + sorted((ROOT / "tests").glob("*.py")) + \
+        sorted((ROOT / "cpp" / "src").glob("*.cpp")) + sorted((ROOT / "cpp" / "include").rglob("*.hpp")) + \
+        sorted((ROOT / "cpp" / "tests").glob("*.cpp")) + [
         Path(__file__).resolve()]
     fingerprint, per_file = code_fingerprint(files)
     prov = {"script": "scripts/mutation_check.py", "code_fingerprint": fingerprint, "files": per_file,

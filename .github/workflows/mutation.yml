@@ -1,6 +1,6 @@
 name: mutation
 
-# The full mutation run takes about 15 minutes, too long for every push.
+# The full mutation run takes about an hour, too long for every push.
 # It runs on demand (Actions tab, "Run workflow") and once a week. The report
 # committed in docs/ is still checked on every push: it must match the
 # current sources and tests (scripts/check_provenance.py).
@@ -12,11 +12,12 @@ on:
 jobs:
   mutation:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - run: sudo apt-get update && sudo apt-get install -y libeigen3-dev
       - run: pip install -e ".[dev]"
       - run: python scripts/mutation_check.py --jobs 4

@@ -2,7 +2,7 @@
 
 Généré par `scripts/mutation_check.py`. Chaque ligne est un bug plausible introduit dans une copie du dépôt, puis la suite de tests est lancée sur cette copie (sans le test de provenance, qui détecterait trivialement toute modification).
 
-**47 mutations détectées sur 48.**
+**54 mutations détectées sur 55.**
 
 | | Fichier | Bug simulé | Résultat | Détecté par |
 |---|---|---|---|---|
@@ -54,6 +54,13 @@ Généré par `scripts/mutation_check.py`. Chaque ligne est un bug plausible int
 | M46 | `ulog_reader.py` | retard GNSS appliqué dans le mauvais sens à la lecture du log | détecté | `tests/test_step7.py::test_ulog_reader_on_a_real_log` |
 | M47 | `replay.py` | précision horizontale du récepteur prise par axe au lieu d'être répartie sur nord et est | détecté | `tests/test_step7.py::test_receiver_accuracy_becomes_per_axis_sigmas` |
 | M48 | `ulog_reader.py` | cos(latitude) oublié dans la projection locale | détecté | `tests/test_step7.py::test_geodetic_to_ned_against_ecef` |
+| M49 | `eskf.cpp` | C++ : signe du couplage vitesse / attitude dans F | détecté | `tests/test_step8.py::test_same_states_on_a_misaligned_flight_with_an_outage` |
+| M50 | `eskf.cpp` | C++ : signe de la jacobienne de réinitialisation (le bug de l'étape 5) | détecté | `tests/test_step8.py::test_same_states_on_a_misaligned_flight_with_an_outage` |
+| M51 | `eskf.cpp` | C++ : signe de l'état de décalage de dérapage | détecté | `tests/test_step8.py::test_same_states_on_a_misaligned_flight_with_an_outage` |
+| M52 | `eskf.cpp` | C++ : test d'innovation inversé | détecté | `tests/test_step8.py::test_cpp_unit_tests` |
+| M53 | `eskf.cpp` | C++ : signe de la corrélation vent / cap à l'initialisation du vent | détecté | `tests/test_step8.py::test_same_states_on_a_misaligned_flight_with_an_outage` |
+| M54 | `eskf.cpp` | C++ : couplage cap / inclinaison oublié dans la mesure de cap | détecté | `tests/test_step8.py::test_same_states_on_a_misaligned_flight_with_an_outage` |
+| M55 | `replay_main.cpp` | C++ : protection contre le blocage du Pitot oubliée dans la boucle | détecté | `tests/test_step8.py::test_same_gate_decisions_and_resets` |
 
 ## Mutations qui survivent, et pourquoi
 
@@ -61,5 +68,5 @@ Généré par `scripts/mutation_check.py`. Chaque ligne est un bug plausible int
 
 ## Provenance
 
-- Empreinte des sources et des tests : `48ae193bb1f0e451` (29 fichiers)
+- Empreinte des sources et des tests : `5085d5dafe5dac08` (36 fichiers)
 - Toute modification d'un module ou d'un test rend ce rapport périmé (`scripts/check_provenance.py`) : relancer le script.

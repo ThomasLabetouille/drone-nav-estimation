@@ -1,0 +1,60 @@
+{
+  "generated_utc": "2026-10-04T13:16:57Z",
+  "script": "scripts/step8_cpp.py",
+  "code_fingerprint": "577ab746e3aebb5525b6d14f451bbbc2e4b3b6eb65b50a2012062421f1112694",
+  "files": {
+    "cpp/CMakeLists.txt": "d58aa6381f38109daa46ea2feaf05391fe60ecfe432ee56d2132b59e655eeeb6",
+    "cpp/include/navcpp/eskf.hpp": "21f0f312b2670fe71966de7ea420df14b3020ed7f0c82627036f5095de0f280c",
+    "cpp/include/navcpp/rotations.hpp": "b68a9e39b9892ad90f01bcfbaf850a9cb24a734a58abadea5f048af28e980acd",
+    "cpp/src/eskf.cpp": "a3f5902255b5be414394c605021f321ebda8e5082bc3ee877ee31856c67e670c",
+    "cpp/src/replay_main.cpp": "1adb6630d3e4d86ea01307204176ddb01c2ccc38c6dea72e67b21767fcc764aa",
+    "cpp/tests/test_eskf.cpp": "9b60e3ddbd32d5748ac5d161177217c4996087ab83b41aef500ecc19510672de",
+    "scripts/step7_replay.py": "3829d51b7c063869450a134176f2a0ec1106a456752cfb2f7b3d5dbf39d13247",
+    "scripts/step8_cpp.py": "cbd86d0373a6b5d48b6041b64c97760616ac7c3ee74c792aabde26a65cef02ee",
+    "src/navsim/__init__.py": "1ef54889932f5a1d5c3eae5402e991d560dd0dcf0956375745a5dec6e3ce6f68",
+    "src/navsim/aiding.py": "c9aac89b20a1b4547152ccde03827db7d5d7dc0b0beb2d9504dc541423939406",
+    "src/navsim/cpp_bridge.py": "8165fb7aaa0dad20a7c9e0c5be5ae5054e1147077e57a9ebfedac44acee19220",
+    "src/navsim/eskf.py": "4b18fd5144c2291db3d42579c8fa5e6c3f3d6a3fdaa9c6435df26faa0d0eb2a4",
+    "src/navsim/faults.py": "57e69ea3b3950666e9c092cbf6a857db38711115f812960635ee8784a3850b29",
+    "src/navsim/fusion.py": "5417df8942d93a5b6010c103ce69472f98d6c475d5ae09ea8c39e65cc30a2919",
+    "src/navsim/gnss.py": "a9b9238e280364c3fe36d5ed0ea579ce29e32fd6059d911c4a4479f8e253a50b",
+    "src/navsim/imu.py": "a31846359a39abfece337975a57a68b8337c1f244672529dd9d3dd19de55a316",
+    "src/navsim/provenance.py": "68d1c2e8d87e9a9e50b39f7254018f8e9872032c5f4fc3aed1f4113528331373",
+    "src/navsim/replay.py": "e5a23e9c8b69c8fc1aba1a0b16f95d49475d38fef32fce6eb9ea01651a64a831",
+    "src/navsim/rotations.py": "7cadb4f5bc37be56c2e151f4f1371aca54d4b12bfa970ae0395fd1910adc2967",
+    "src/navsim/sensors.py": "be6011fa82976fb466f90bd17eaa38ffa444e52cb2cbdf5bc23a40af9e6eb211",
+    "src/navsim/strapdown.py": "f37d0fd8f25b5ebef4120c721ab6b1277e0172661dd942a40e19cc3ffa5a512f",
+    "src/navsim/trajectory.py": "43f6df8e280ddd827a44a81ad9d3d55bae258e2abc10539fd583ec140438d563",
+    "src/navsim/trajectory3d.py": "396eb08d32257fa713e1fda427f8a0f7d895edd2ef7d24a7517ab650a61bc6c1",
+    "src/navsim/ulog_reader.py": "7365598e27abe8322e069da550bda80d17025ad9bd2bed5baa730777b9afe4b5"
+  },
+  "git": {
+    "commit": null,
+    "dirty": null
+  },
+  "seed": 0,
+  "runs": 1,
+  "params": {
+    "logs": {
+      "A1": {
+        "review_px4_id": "7ce4abb5-cacd-4732-a302-acd3a265deed",
+        "sha256": "fe9a21a577d90b7edf4a79bd99530f26f46f6ff82491d2615eec01fbe8e898fe"
+      },
+      "A2": {
+        "review_px4_id": "178e9452-5ce8-4024-9ef5-1e9ce6da4cd9",
+        "sha256": "dbba98ef326591623cf70b60eaeb7c289b4b8bc80221e30df9686fda97a9dc2b"
+      },
+      "B": {
+        "review_px4_id": "e163c6fb-3ae1-4355-a833-b2a9b87a6a26",
+        "sha256": "f13e448bb7da51fe9dd66821ad83a7d4a693b94b8b563907181ef654f9aaa51c"
+      }
+    }
+  },
+  "params_sha256": "2a356de0c52cd507b6c7d5a7610f3c81df88cca79be1d0c765c025d53f6151b3",
+  "versions": {
+    "python": "3.13.15",
+    "numpy": "2.5.3",
+    "scipy": "1.18.1",
+    "matplotlib": "3.11.2"
+  }
+}
