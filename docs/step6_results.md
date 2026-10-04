@@ -41,11 +41,11 @@ Vol animé (`docs/img/step6_outage.mp4`) : run 32, celui dont l'erreur de O3 à 
 
 ## Provenance
 
-- Empreinte du code : `22bbf3e1a3e3576e` (14 fichiers, calculée par le script au moment de l'écriture)
+- Empreinte du code : `1d3525acff1a390c` (14 fichiers, calculée par le script au moment de l'écriture)
 - Commit git : non disponible
 - Graine : 2026, 40 runs
-- Paramètres : `25a66c5f203580db` (détail dans le fichier JSON voisin)
+- Paramètres : `cfea53456d61250d` (détail dans le fichier JSON voisin)
 - Python 3.13.15, numpy 2.5.3, scipy 1.18.1
-- Généré le 2026-10-02T20:13:45Z
+- Généré le 2026-10-03T09:20:25Z
 
 `python scripts/check_provenance.py` compare cette empreinte au code actuel.

@@ -47,11 +47,11 @@ Généré par `scripts/step3_eskf.py`. Mission de 480 s, IMU à 200 Hz, GNSS à 
 
 ## Provenance
 
-- Empreinte du code : `76463bcddc958143` (14 fichiers, calculée par le script au moment de l'écriture)
+- Empreinte du code : `0d7d83f6506a6bf0` (14 fichiers, calculée par le script au moment de l'écriture)
 - Commit git : non disponible
 - Graine : 2026, 100 runs
 - Paramètres : `b121f9442747f2a7` (détail dans le fichier JSON voisin)
 - Python 3.13.15, numpy 2.5.3, scipy 1.18.1
-- Généré le 2026-10-02T19:32:48Z
+- Généré le 2026-10-03T08:54:07Z
 
 `python scripts/check_provenance.py` compare cette empreinte au code actuel.

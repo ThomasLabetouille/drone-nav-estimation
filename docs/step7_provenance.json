@@ -1,0 +1,176 @@
+{
+  "generated_utc": "2026-10-03T08:49:50Z",
+  "script": "scripts/step7_replay.py",
+  "code_fingerprint": "c1649691a87620773852490c64b27a8137f67ca21e484226c5b727e9689feb4b",
+  "files": {
+    "scripts/step7_replay.py": "3829d51b7c063869450a134176f2a0ec1106a456752cfb2f7b3d5dbf39d13247",
+    "src/navsim/__init__.py": "1ef54889932f5a1d5c3eae5402e991d560dd0dcf0956375745a5dec6e3ce6f68",
+    "src/navsim/aiding.py": "c9aac89b20a1b4547152ccde03827db7d5d7dc0b0beb2d9504dc541423939406",
+    "src/navsim/eskf.py": "4b18fd5144c2291db3d42579c8fa5e6c3f3d6a3fdaa9c6435df26faa0d0eb2a4",
+    "src/navsim/faults.py": "57e69ea3b3950666e9c092cbf6a857db38711115f812960635ee8784a3850b29",
+    "src/navsim/fusion.py": "5417df8942d93a5b6010c103ce69472f98d6c475d5ae09ea8c39e65cc30a2919",
+    "src/navsim/gnss.py": "a9b9238e280364c3fe36d5ed0ea579ce29e32fd6059d911c4a4479f8e253a50b",
+    "src/navsim/imu.py": "a31846359a39abfece337975a57a68b8337c1f244672529dd9d3dd19de55a316",
+    "src/navsim/provenance.py": "68d1c2e8d87e9a9e50b39f7254018f8e9872032c5f4fc3aed1f4113528331373",
+    "src/navsim/replay.py": "43e65af2988b3da4cc6f25236a382783467a4fab6367d83975fefe416e5b2abc",
+    "src/navsim/rotations.py": "7cadb4f5bc37be56c2e151f4f1371aca54d4b12bfa970ae0395fd1910adc2967",
+    "src/navsim/sensors.py": "be6011fa82976fb466f90bd17eaa38ffa444e52cb2cbdf5bc23a40af9e6eb211",
+    "src/navsim/strapdown.py": "f37d0fd8f25b5ebef4120c721ab6b1277e0172661dd942a40e19cc3ffa5a512f",
+    "src/navsim/trajectory.py": "43f6df8e280ddd827a44a81ad9d3d55bae258e2abc10539fd583ec140438d563",
+    "src/navsim/trajectory3d.py": "396eb08d32257fa713e1fda427f8a0f7d895edd2ef7d24a7517ab650a61bc6c1",
+    "src/navsim/ulog_reader.py": "7365598e27abe8322e069da550bda80d17025ad9bd2bed5baa730777b9afe4b5"
+  },
+  "git": {
+    "commit": null,
+    "dirty": null
+  },
+  "seed": 0,
+  "runs": 1,
+  "params": {
+    "configs": {
+      "A1": {
+        "R3": {
+          "baro": {
+            "drift_sigma": 5.0,
+            "drift_tau": 600.0,
+            "noise_sigma": 3.5,
+            "rate_hz": 5.001189583862177
+          },
+          "gate_prob": 0.999,
+          "gnss_delay": 0.0,
+          "gnss_floor": [
+            0.5,
+            0.75,
+            0.30000001192092896
+          ],
+          "gnss_outage": [],
+          "gnss_reset_after_s": 45.0,
+          "imu": {
+            "accel_bias0": 0.20000000298023224,
+            "accel_bias_rw": 0.00030000000260770325,
+            "accel_noise": 0.034999999403953555,
+            "gyro_bias0": 0.10000000149011612,
+            "gyro_bias_rw": 0.00010000000474974513,
+            "gyro_noise": 0.0014999999664723875,
+            "rate_hz": 200.0
+          },
+          "init_window_s": 1.0,
+          "mag": {
+            "bias0": 0.05,
+            "bias_rw": 1e-05,
+            "field_ned": [
+              0.20791141016351822,
+              0.007225347029528332,
+              0.43835719406718554
+            ],
+            "fusion": "heading",
+            "heading_sigma_deg": 17.188734536943613,
+            "learn_bias_min_rate_deg_s": 5.0,
+            "noise": 0.05000000074505806,
+            "rate_hz": 1.9999590725195906
+          },
+          "min_airspeed": 8.0,
+          "pitot": {
+            "noise": 1.399999976158142,
+            "rate_hz": 5.001418439716312,
+            "scale_sigma0": 0.3
+          },
+          "sideslip_offset_sigma0_deg": 15.0,
+          "sideslip_sigma_deg": 6.0,
+          "tilt_sigma_deg": 2.0,
+          "wind": {
+            "init_from_airspeed": true,
+            "init_sideslip_sigma_deg": 2.0,
+            "reset_after_rejected_s": 5.0,
+            "rw": 0.1,
+            "rw_without_gnss": null,
+            "sigma0": 5.0
+          },
+          "yaw_sigma_deg": 15.0
+        }
+      },
+      "A2": {
+        "R3": {
+          "baro": {
+            "drift_sigma": 5.0,
+            "drift_tau": 600.0,
+            "noise_sigma": 3.5,
+            "rate_hz": 5.001687802415551
+          },
+          "gate_prob": 0.999,
+          "gnss_delay": 0.0,
+          "gnss_floor": [
+            0.5,
+            0.75,
+            0.30000001192092896
+          ],
+          "gnss_outage": [],
+          "gnss_reset_after_s": 45.0,
+          "imu": {
+            "accel_bias0": 0.20000000298023224,
+            "accel_bias_rw": 0.00030000000260770325,
+            "accel_noise": 0.034999999403953555,
+            "gyro_bias0": 0.10000000149011612,
+            "gyro_bias_rw": 0.00010000000474974513,
+            "gyro_noise": 0.0014999999664723875,
+            "rate_hz": 200.0
+          },
+          "init_window_s": 1.0,
+          "mag": {
+            "bias0": 0.05,
+            "bias_rw": 1e-05,
+            "field_ned": [
+              0.20791732019328826,
+              0.0072832580332781215,
+              0.43839987267378716
+            ],
+            "fusion": "heading",
+            "heading_sigma_deg": 17.188734536943613,
+            "learn_bias_min_rate_deg_s": 5.0,
+            "noise": 0.05000000074505806,
+            "rate_hz": 2.0000968732993867
+          },
+          "min_airspeed": 8.0,
+          "pitot": {
+            "noise": 1.399999976158142,
+            "rate_hz": 5.00157184061863,
+            "scale_sigma0": 0.3
+          },
+          "sideslip_offset_sigma0_deg": 15.0,
+          "sideslip_sigma_deg": 6.0,
+          "tilt_sigma_deg": 2.0,
+          "wind": {
+            "init_from_airspeed": true,
+            "init_sideslip_sigma_deg": 2.0,
+            "reset_after_rejected_s": 5.0,
+            "rw": 0.1,
+            "rw_without_gnss": null,
+            "sigma0": 5.0
+          },
+          "yaw_sigma_deg": 15.0
+        }
+      }
+    },
+    "logs": {
+      "A1": {
+        "review_px4_id": "7ce4abb5-cacd-4732-a302-acd3a265deed",
+        "sha256": "fe9a21a577d90b7edf4a79bd99530f26f46f6ff82491d2615eec01fbe8e898fe"
+      },
+      "A2": {
+        "review_px4_id": "178e9452-5ce8-4024-9ef5-1e9ce6da4cd9",
+        "sha256": "dbba98ef326591623cf70b60eaeb7c289b4b8bc80221e30df9686fda97a9dc2b"
+      },
+      "B": {
+        "review_px4_id": "e163c6fb-3ae1-4355-a833-b2a9b87a6a26",
+        "sha256": "f13e448bb7da51fe9dd66821ad83a7d4a693b94b8b563907181ef654f9aaa51c"
+      }
+    }
+  },
+  "params_sha256": "9d47ac707f3dded2442f0788b0d4e7977d4877cbd36e8882f3d3707c1dc62416",
+  "versions": {
+    "python": "3.13.15",
+    "numpy": "2.5.3",
+    "scipy": "1.18.1",
+    "matplotlib": "3.11.2"
+  }
+}

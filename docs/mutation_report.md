@@ -2,7 +2,7 @@
 
 Généré par `scripts/mutation_check.py`. Chaque ligne est un bug plausible introduit dans une copie du dépôt, puis la suite de tests est lancée sur cette copie (sans le test de provenance, qui détecterait trivialement toute modification).
 
-**40 mutations détectées sur 41.**
+**47 mutations détectées sur 48.**
 
 | | Fichier | Bug simulé | Résultat | Détecté par |
 |---|---|---|---|---|
@@ -47,6 +47,13 @@ Généré par `scripts/mutation_check.py`. Chaque ligne est un bug plausible int
 | M39 | `fusion.py` | marche aléatoire du vent réduite avec GNSS au lieu de sans | détecté | `tests/test_step6.py::test_gnss_lockout_and_its_protection` |
 | M40 | `fusion.py` | perte GNSS simulée ignorée | détecté | `tests/test_step6.py::test_outage_is_applied_and_gnss_is_accepted_again` |
 | M41 | `aiding.py` | perturbation magnétique simulée ignorée | détecté | `tests/test_step6.py::test_strong_magnetic_disturbance_is_rejected` |
+| M42 | `eskf.py` | intervalle IMU nominal au lieu du vrai dans les états de Gauss-Markov | détecté | `tests/test_step7.py::test_rediscretisation_matches_a_filter_built_at_that_interval` |
+| M43 | `eskf.py` | couplage cap / inclinaison oublié dans la mesure de cap | détecté | `tests/test_step7.py::test_heading_jacobian_includes_the_pitch_coupling[0.3]` |
+| M44 | `eskf.py` | signe de l'état d'échelle de vitesse air | détecté | `tests/test_step7.py::test_airspeed_jacobian_with_scale_state` |
+| M45 | `eskf.py` | signe de l'état de décalage de dérapage | détecté | `tests/test_step7.py::test_sideslip_jacobian_with_offset_state` |
+| M46 | `ulog_reader.py` | retard GNSS appliqué dans le mauvais sens à la lecture du log | détecté | `tests/test_step7.py::test_ulog_reader_on_a_real_log` |
+| M47 | `replay.py` | précision horizontale du récepteur prise par axe au lieu d'être répartie sur nord et est | détecté | `tests/test_step7.py::test_receiver_accuracy_becomes_per_axis_sigmas` |
+| M48 | `ulog_reader.py` | cos(latitude) oublié dans la projection locale | détecté | `tests/test_step7.py::test_geodetic_to_ned_against_ecef` |
 
 ## Mutations qui survivent, et pourquoi
 
@@ -54,5 +61,5 @@ Généré par `scripts/mutation_check.py`. Chaque ligne est un bug plausible int
 
 ## Provenance
 
-- Empreinte des sources et des tests : `5a2300792eabb998` (26 fichiers)
+- Empreinte des sources et des tests : `48ae193bb1f0e451` (29 fichiers)
 - Toute modification d'un module ou d'un test rend ce rapport périmé (`scripts/check_provenance.py`) : relancer le script.

@@ -83,7 +83,7 @@ def initial_covariance(imu_cfg: IMUConfig, gnss_cfg: gnss_mod.GNSSConfig, init: 
         extra.append(gnss_cfg.corr_sigma**2)
     if aiding is not None and aiding.baro is not None:
         extra.append([aiding.baro.drift_sigma**2])
-    if aiding is not None and aiding.mag is not None:
+    if aiding is not None and aiding.mag is not None and aiding.mag.fusion == "3d":
         extra.append([aiding.mag.bias0**2] * 3)
     if aiding is not None and aiding.wind is not None:
         extra.append([aiding.wind.sigma0**2] * 2)

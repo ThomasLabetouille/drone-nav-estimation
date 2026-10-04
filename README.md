@@ -4,31 +4,33 @@
 
 Simulation de capteurs et estimation d'état pour un drone à voilure fixe, en Python, avec un portage C++ prévu une fois les algorithmes validés.
 
-Le projet avance par étapes. Chacune ajoute des capteurs ou des états au filtre et se valide avant de passer à la suivante. Six étapes sont faites :
+Le projet avance par étapes. Chacune ajoute des capteurs ou des états au filtre et se valide avant de passer à la suivante. Sept étapes sont faites :
 
 1. la voie verticale : un filtre de Kalman qui fusionne un accéléromètre et un baromètre ;
 2. la navigation inertielle en 3D : trajectoire de voilure fixe, IMU 6 axes, intégration strapdown, et l'erreur d'une IMU MEMS seule comparée à son budget analytique ;
 3. un EKF à état d'erreur à 15 états qui fusionne l'IMU et le GNSS, avec ce qu'il apprend à chaque manœuvre et ce qu'il ne peut pas apprendre en ligne droite ;
 4. un GNSS réaliste : erreurs corrélées dans le temps, estimées par trois états de plus, et 150 ms de latence gérée par un filtre à horizon retardé ;
 5. les capteurs d'aide d'un drone à voilure fixe, dans 5 m/s de vent : magnétomètre, baromètre, tube de Pitot, et l'estimation du vent ;
-6. les modes dégradés : perte et saut du GNSS, perturbation magnétique, test d'innovation et blocages qu'il peut provoquer.
+6. les modes dégradés : perte et saut du GNSS, perturbation magnétique, test d'innovation et blocages qu'il peut provoquer ;
+7. le rejeu de trois vrais vols PX4, comparé à l'EKF2 embarqué, avec ce que ces vols ont révélé sur leurs capteurs.
 
 ![Estimation d'altitude sur une mission complète](docs/img/step1_estimation.png)
 
 ## Lancer
 
 ```bash
-pip install -e ".[dev]"
-python -m pytest                       # environ huit minutes
+pip install -e ".[dev]"                # dont pyulog et pygeomag pour l'étape 7
+python -m pytest                       # environ neuf minutes
 python scripts/step1_altitude.py       # étape 1, ~45 s
 python scripts/step2_strapdown.py      # étape 2, ~50 s
 python scripts/step3_eskf.py           # étape 3, ~2 min 30
 python scripts/step4_gnss.py           # étape 4, ~5 min
 python scripts/step5_aiding.py         # étape 5, ~40 min (--runs 10 : ~10 min)
 python scripts/step6_degraded.py       # étape 6 et sa vidéo, ~1 h (--runs 10, --no-video)
+python scripts/step7_replay.py         # étape 7, ~20 min, logs à télécharger (liens dans le script)
 python scripts/step2_strapdown.py --runs 100   # plus rapide, moins de Monte-Carlo
 python scripts/check_provenance.py     # les résultats de docs/ correspondent-ils au code actuel ?
-python scripts/mutation_check.py       # les tests détectent-ils des bugs connus ? ~45 min
+python scripts/mutation_check.py       # les tests détectent-ils des bugs connus ? ~1 h
 ```
 
 Les figures sont écrites dans `docs/img/`, les tableaux dans `docs/stepN_results.md`.
@@ -490,6 +492,102 @@ Le code est dans `src/navsim/faults.py` (pannes), `src/navsim/eskf.py` (test d'i
 
 Les vibrations, prévues au départ dans cette étape, ne sont pas encore simulées.
 
+## Étape 7 : rejeu de vrais logs PX4
+
+![Capteurs réels](docs/img/step7_sensors.png)
+
+Jusqu'ici, tout venait du simulateur. Cette étape fait tourner le même filtre sur trois vols réels, des logs publics de [review.px4.io](https://review.px4.io) que le dépôt ne contient pas : le script donne les liens de téléchargement et vérifie leur empreinte SHA-256.
+
+<!-- source: docs/step7_results.md -->
+| Vol | Log | Matériel | Durée | En vol | GNSS loggé | Magnéto loggé | Vitesse air loggée |
+|---|---|---|---|---|---|---|---|
+| A1 | `7ce4abb5` | PX4_FMU_V6X | 705 s | 321 s | 2,0 Hz | 2,0 Hz | 5,0 Hz |
+| A2 | `178e9452` | PX4_FMU_V6X | 636 s | 417 s | 2,0 Hz | 2,0 Hz | 5,0 Hz |
+| B | `e163c6fb` | PX4_FMU_V6C | 593 s | 583 s | 7,5 Hz | 2,0 Hz | 5,0 Hz |
+
+A1 et A2 viennent du même avion. `src/navsim/ulog_reader.py` lit le log avec pyulog et en tire :
+
+- les incréments IMU, sur leurs vrais intervalles d'intégration ;
+- les positions GNSS avec la précision annoncée par le récepteur ;
+- le baromètre, le magnétomètre déjà calibré par PX4 et la vitesse air ;
+- les sorties de l'EKF2 embarqué, qui servent de référence.
+
+Chaque mesure est datée de son instant de validité, en retirant le retard que l'EKF2 utilisait dans ce vol (`EKF2_GPS_DELAY`, `EKF2_ASP_DELAY`...). Les positions sont projetées comme le fait PX4, autour de l'origine de l'EKF2, pour que les deux filtres travaillent dans le même repère. Le champ magnétique de référence vient du modèle mondial WMM à la date et au lieu du vol.
+
+`src/navsim/replay.py` fait tourner le filtre sur ces données. Par rapport à la boucle de simulation, il gère des intervalles IMU irréguliers et une covariance GNSS qui change à chaque mesure. Il ne fusionne la vitesse air et le dérapage qu'au-dessus de 8 m/s, et ne démarre le vent qu'à ce moment-là. Les bruits sont ceux que l'EKF2 utilisait dans le vol, convertis en densités : l'EKF2 les exprime par pas de prédiction de 10 ms.
+
+Un vrai vol n'a pas de vérité terrain. J'ai donc trois façons de juger le filtre : l'écart à l'EKF2, la cohérence des innovations (NIS), et des pertes GNSS simulées sur le vol réel, où la position GNSS qui suit la perte sert de référence.
+
+### Ce que les logs disent de leurs capteurs
+
+Avant de rejouer quoi que ce soit, les états de l'EKF2 permettent de vérifier les hypothèses des étapes 5 et 6 :
+
+<!-- source: docs/step7_results.md -->
+| Vol | Champ mesuré | Champ WMM | Inclinaison mesurée | Inclinaison WMM | Cap magnéto − cap EKF2, écart-type | Dérapage ailes à plat | Vitesse air / \|v − w\| |
+|---|---|---|---|---|---|---|---|
+| A1 | 0,401 G | 0,485 G | 58,8° | 64,6° | 11,4° | −9,6° | 0,983 |
+| A2 | 0,399 G | 0,485 G | 58,7° | 64,6° | 9,0° | −7,1° | 1,000 |
+| B | 0,440 G | 0,448 G | 35,9° | 34,2° | 3,9° | 5,0° | 1,364 |
+
+**Magnétomètre.** Sur l'avion A, le champ mesuré est 17 % plus faible que celui du modèle et incliné de 6° de moins. Le cap qu'on en tire s'écarte de celui de l'EKF2 de ±10°, et cet écart dépend du cap : il fait des créneaux au rythme des orbites (figure du haut). L'étape 5 supposait un bruit blanc de 3 mG, l'équivalent de moins d'un degré de cap. J'ai ajouté une fusion du cap seul (`MagConfig(fusion="heading")`) : elle n'utilise que la déclinaison, pas l'intensité ni l'inclinaison, et prend l'écart-type de cap de l'EKF2 (17°).
+
+**Dérapage.** Les états de l'EKF2 eux-mêmes donnent un dérapage de −7 à −10° ailes à plat sur l'avion A. Soit l'autopilote est monté tourné par rapport à l'axe de l'avion, soit l'avion vole vraiment en crabe. Dans les deux cas, l'hypothèse « dérapage nul dans le repère de l'IMU » de l'étape 5 est fausse sur cet avion.
+
+**Vitesse air.** Sur l'avion B, la vitesse air mesurée est 36 % plus grande que la vitesse par rapport à l'air déduite de l'EKF2. Dans ce vol, la fusion de la vitesse air était désactivée (`EKF2_ARSP_THR = 0`).
+
+### Écart au filtre embarqué
+
+<!-- source: docs/step7_results.md -->
+| | A1 : position horiz. | A1 : cap, moyenne | A1 : vent | A2 : position horiz. | A2 : cap, moyenne | A2 : vent |
+|---|---|---|---|---|---|---|
+| R1 : IMU + GNSS | 0,45 m | 0,17° | – | 0,19 m | 0,42° | – |
+| R2 : + baro, magnétomètre (cap) | 0,46 m | 0,13° | – | 0,19 m | 0,40° | – |
+| R3 : + Pitot, vent, dérapage avec décalage | 0,44 m | −0,06° | 0,55 m/s | 0,19 m | 0,68° | 0,50 m/s |
+| R3 sans état de décalage (dérapage σ 6°) | 0,48 m | −3,02° | 1,32 m/s | 0,20 m | −2,17° | 1,10 m/s |
+| R3 sans décalage, dérapage σ 17° (valeur EKF2) | 0,45 m | −0,91° | 0,71 m/s | 0,18 m | −0,52° | 0,67 m/s |
+
+En vol, les deux filtres restent à moins d'un demi-mètre l'un de l'autre, alors que le mien ne voit que les positions GNSS loggées, à 2 Hz. Le cap concorde à 0,7 à 1,1° RMS près.
+
+Avec la mesure de dérapage nul de l'étape 5 (σ = 6°), le cap se décale de 2 à 3° par rapport à l'EKF2, et le vent de 1,1 à 1,3 m/s. L'EKF2 évite ce piège en donnant à cette mesure un écart-type de 17° (`EKF2_BETA_NOISE`), ce qui la rend presque inutile. J'ai préféré ajouter un état de décalage de dérapage : la mesure devient « dérapage − décalage = 0 », et le filtre estime le décalage en vol. Le cap est observable par ailleurs (GNSS en virage), donc le décalage l'est aussi.
+
+<!-- source: docs/step7_results.md -->
+| Vol | Décalage de dérapage estimé | ±1σ | Dérapage déduit de l'EKF2 | Échelle de vitesse air estimée | Rapport vitesse air / \|v − w\| de l'EKF2 |
+|---|---|---|---|---|---|
+| A1 | −8,3° | 0,3° | −9,6° | 0,992 | 0,983 |
+| A2 | −6,6° | 0,2° | −7,1° | 1,000 | 1,000 |
+| B | – | – | – | 1,352 | 1,364 |
+
+Le décalage converge en une trentaine de secondes après le décollage (figure du haut, en bas), et le biais de cap disparaît. Sur le même principe, un état d'échelle de la vitesse air retrouve les 35 % d'erreur de l'avion B, sans rien savoir de l'EKF2.
+
+Les NIS sont tous bas en vol : 0,1 à 0,3 pour le GNSS, 0,01 à 0,15 pour le baro (détail dans `docs/step7_results.md`). Les bruits de l'EKF2 sont prudents pour cet avion. J'ai essayé de les resserrer d'après ces NIS : les pertes GNSS ci-dessous se dégradent et le filtre devient trop sûr de lui. Comme à l'étape 4, un NIS bas peut venir d'erreurs corrélées autant que d'un excès de prudence.
+
+### Pertes GNSS sur les vols réels
+
+![Pertes GNSS simulées sur les vols réels](docs/img/step7_outages.png)
+
+Le GNSS est coupé 30 s toutes les 90 s en vol, soit 7 pertes sur les deux vols de l'avion A. À la fin de chaque perte, l'estimation est comparée à la vraie position GNSS qui suit.
+
+<!-- source: docs/step7_results.md -->
+| | Écart médian | Médiane A1 / A2 | Écart max | 1σ annoncé médian | Écart / σ max |
+|---|---|---|---|---|---|
+| R1 : IMU + GNSS | 15,1 m | 10,8 / 24,5 m | 36,1 m | 49,6 m | 0,68 |
+| R1 + baro | 23,8 m | 14,8 / 36,9 m | 54,5 m | 37,9 m | 1,35 |
+| R2 : + baro, magnétomètre (cap) | 31,4 m | 17,8 / 35,1 m | 54,6 m | 37,4 m | 1,36 |
+| R3 : + Pitot, vent, dérapage avec décalage | 12,0 m | 12,0 / 11,7 m | 19,1 m | 16,0 m | 1,19 |
+
+Avec la vitesse air et le vent (R3), l'écart reste entre 7 et 19 m après 30 s, et l'incertitude annoncée le suit. L'IMU seule (R1) fait à peine moins bien en médiane, mais varie beaucoup plus d'une perte à l'autre (8 à 36 m) et annonce trois fois trop d'incertitude, à cause des bruits prudents de l'EKF2.
+
+Le résultat inattendu, c'est R2 : ajouter le baromètre et le magnétomètre dégrade la navigation à l'estime, jusqu'à 55 m. En testant chaque capteur séparément, c'est déjà le cas du baromètre seul (R1 + baro). Je n'ai pas encore isolé le mécanisme. Mon hypothèse : une erreur de pression statique qui varie avec la vitesse et l'attitude passe dans l'inclinaison par la voie verticale. Sept pertes, c'est peu, et je n'en tire que les ordres de grandeur.
+
+Le code est dans `src/navsim/ulog_reader.py` (lecture des logs), `src/navsim/replay.py` (rejeu, réglage depuis les paramètres EKF2, pertes simulées) et `src/navsim/eskf.py` (fusion du cap, états d'échelle de vitesse air et de décalage de dérapage, intervalles IMU irréguliers).
+
+### Écarts rencontrés
+
+- **La jacobienne de la mesure de cap.** Ma docstring affirmait qu'une erreur d'attitude ne change le cap que par sa composante verticale (H = [0, 0, 1]). La dérivée numérique a montré deux termes en tan(tangage) : une erreur d'inclinaison change aussi le lacet quand le nez est levé ou baissé. Un test vérifie maintenant la jacobienne à plusieurs tangages.
+- **Les angles d'Euler sur le vol B.** La première comparaison donnait 37° d'écart de roulis RMS avec l'EKF2. Le vol B passe quatre minutes à un tangage de −80 à −90° selon l'EKF2, là où roulis et lacet ne sont plus définis. Les écarts d'attitude sont maintenant calculés comme une rotation (inclinaison et cap dans le repère NED), indépendante des angles d'Euler. Ce vol a un comportement que je ne comprends pas encore (configuration de l'autopilote, appareil hybride ?), donc je ne m'en sers que pour l'échelle de vitesse air.
+- **La projection locale.** Ma première version projetait les positions GNSS sur un plan tangent à l'ellipsoïde WGS84. PX4 utilise une projection azimutale équidistante sur une sphère de 6 371 km. Le passage à la projection de PX4 a ramené l'écart horizontal à l'EKF2 de 0,55 à 0,45 m sur A1, et de 0,43 à 0,19 m sur A2.
+- **Les horodatages.** Dans ces logs, `timestamp_sample` vaut zéro pour le GNSS. Le lecteur ne l'utilise que s'il est rempli.
+
 ## Vérification
 
 Une bonne partie du code et des tests de ce dépôt a été écrite avec un assistant IA. Un test écrit en même temps que le code risque de partager ses erreurs, donc la vérification passe aussi par d'autres chemins. Le détail est dans [`docs/verification.md`](docs/verification.md).
@@ -503,7 +601,7 @@ Une bonne partie du code et des tests de ce dépôt a été écrite avec un assi
   - des formules fermées pour le budget d'erreur et la latence.
 - **Propriétés** (`tests/test_properties.py`, hypothesis). Des invariants sont tirés sur des centaines d'entrées aléatoires. Ce test a trouvé une covariance singulière dans le filtre de l'étape 1, pour une dérive baro positive mais minuscule.
 - **Tests métamorphiques.** Le même vol fait avec un cap initial tourné de 90° doit donner les mêmes erreurs, tournées de 90°.
-- **Tests de mutation** (`scripts/mutation_check.py`). Quarante et un bugs plausibles sont injectés un par un dans une copie du dépôt, et la suite de tests doit les détecter. La première exécution a révélé deux faiblesses des tests, corrigées depuis. À l'étape 5, une mutation que je croyais sans effet a révélé un vrai bug, présent depuis l'étape 3 : le signe de la jacobienne de réinitialisation de l'EKF. L'histoire est dans [`docs/verification.md`](docs/verification.md#m05--la-mutation-qui-avait-raison). Le rapport est dans [`docs/mutation_report.md`](docs/mutation_report.md).
+- **Tests de mutation** (`scripts/mutation_check.py`). Quarante-huit bugs plausibles sont injectés un par un dans une copie du dépôt, et la suite de tests doit les détecter. La première exécution a révélé deux faiblesses des tests, corrigées depuis. À l'étape 5, une mutation que je croyais sans effet a révélé un vrai bug, présent depuis l'étape 3 : le signe de la jacobienne de réinitialisation de l'EKF. L'histoire est dans [`docs/verification.md`](docs/verification.md#m05--la-mutation-qui-avait-raison). Le rapport est dans [`docs/mutation_report.md`](docs/mutation_report.md).
 - **Chiffres du README.** Chaque tableau de résultats de ce fichier est vérifié contre le fichier généré correspondant (`tests/test_docs.py`).
 - **CI.** ruff (règles orientées bugs), la suite complète avec la couverture de code, et la provenance à chaque push ; les mutations chaque semaine.
 
@@ -528,7 +626,9 @@ src/navsim/
   gnss.py             étapes 3-4 : récepteur GNSS, erreurs corrélées, latence
   aiding.py           étape 5 : baromètre, magnétomètre, Pitot, modèle de vent
   faults.py           étape 6 : pannes injectées dans les mesures
-  eskf.py             étapes 3-6 : EKF à état d'erreur, 15 à 24 états, test d'innovation
+  ulog_reader.py      étape 7 : lecture des logs PX4 (ULog), projection locale, champ WMM
+  replay.py           étape 7 : rejeu sur données enregistrées, réglage depuis les paramètres EKF2
+  eskf.py             étapes 3-7 : EKF à état d'erreur, 15 à 26 états, test d'innovation
   fusion.py           étapes 3-6 : boucle de fusion en Monte-Carlo, latence, pannes, protections
   provenance.py       empreinte du code et des paramètres de chaque résultat
 scripts/
@@ -538,6 +638,7 @@ scripts/
   step4_gnss.py       figures et tableau de l'étape 4
   step5_aiding.py     figures et tableaux de l'étape 5
   step6_degraded.py   figures, tableaux et vidéo de l'étape 6
+  step7_replay.py     rejeu des logs réels et comparaison avec l'EKF2
   check_provenance.py vérifie que les résultats de docs/ correspondent au code
   mutation_check.py   injecte des bugs connus et vérifie que les tests les détectent
 tests/
@@ -547,6 +648,8 @@ tests/
   test_step4.py       erreur GNSS corrélée, états de biais, horizon retardé contre latence ignorée
   test_step5.py       vent dans la vérité, capteurs, jacobiennes de mesure, biais magnéto, cohérence
   test_step6.py       pannes, test d'innovation (taux de fausses alarmes), blocages et protections
+  test_step7.py       rejeu de logs simulés (intervalles irréguliers, autopilote monté de travers), lecteur ULog
+  data/               petit log PX4 réel du dépôt pyulog, pour tester le lecteur
   test_oracles.py     comparaisons à des références indépendantes (scipy, EDO, moindres carrés...)
   test_properties.py  invariants (hypothesis) et tests métamorphiques
   test_docs.py        chiffres du README contre les résultats générés
@@ -561,5 +664,4 @@ docs/
 
 ## Suite
 
-7. Rejeu de logs de vol PX4 réels et comparaison avec l'EKF2 embarqué.
 8. Portage C++ (matrices de taille fixe, sans allocation dynamique) et comparaison avec la référence Python sur les mêmes logs.

@@ -134,8 +134,8 @@ MUTATIONS = (
     # --- step 5: aiding sensors and wind -------------------------------------
     Mutation("M26", "src/navsim/eskf.py", "H[:, :, 6:9] = Ct @ skew(self.m_n)", "H[:, :, 6:9] = -Ct @ skew(self.m_n)",
              "signe de la jacobienne magnétomètre / attitude", ("tests/test_step5.py",)),
-    Mutation("M27", "src/navsim/eskf.py", 'H[:, 0, self.blocks["wind"]] = -u[:, :2]',
-             'H[:, 0, self.blocks["wind"]] = u[:, :2]', "signe du vent dans la mesure Pitot",
+    Mutation("M27", "src/navsim/eskf.py", 'H[:, 0, self.blocks["wind"]] = -k[:, None] * u[:, :2]',
+             'H[:, 0, self.blocks["wind"]] = k[:, None] * u[:, :2]', "signe du vent dans la mesure Pitot",
              ("tests/test_step5.py",)),
     Mutation("M28", "src/navsim/eskf.py",
              "d_vair = (Ct[:, 1, :] - beta[:, None] * v_air / V[:, None]) / V[:, None]",
@@ -179,6 +179,27 @@ MUTATIONS = (
              "perte GNSS simulée ignorée", ("tests/test_step6.py",)),
     Mutation("M41", "src/navsim/aiding.py", "            field = field + disturbance_ned", "            field = field",
              "perturbation magnétique simulée ignorée", ("tests/test_step6.py",)),
+    # --- step 7: replay of real logs ---------------------------------------------
+    Mutation("M42", "src/navsim/eskf.py", "phi[gm] = np.exp(-dt / self.tau[gm])",
+             "phi[gm] = np.exp(-self.dt / self.tau[gm])",
+             "intervalle IMU nominal au lieu du vrai dans les états de Gauss-Markov", ("tests/test_step7.py",)),
+    Mutation("M43", "src/navsim/eskf.py", "H[:, 0, 6] = np.tan(pitch) * np.cos(yaw)",
+             "H[:, 0, 6] = 0.0 * np.tan(pitch)", "couplage cap / inclinaison oublié dans la mesure de cap",
+             ("tests/test_step7.py",)),
+    Mutation("M44", "src/navsim/eskf.py", 'H[:, 0, self.blocks["tas_scale"]] = speed[:, None]',
+             'H[:, 0, self.blocks["tas_scale"]] = -speed[:, None]', "signe de l'état d'échelle de vitesse air",
+             ("tests/test_step7.py",)),
+    Mutation("M45", "src/navsim/eskf.py", 'H[:, 0, self.blocks["beta_offset"]] = -1.0',
+             'H[:, 0, self.blocks["beta_offset"]] = 1.0', "signe de l'état de décalage de dérapage",
+             ("tests/test_step7.py",)),
+    Mutation("M46", "src/navsim/ulog_reader.py", '- delay("EKF2_GPS_DELAY")', '+ delay("EKF2_GPS_DELAY")',
+             "retard GNSS appliqué dans le mauvais sens à la lecture du log", ("tests/test_step7.py",)),
+    Mutation("M47", "src/navsim/replay.py", "h = max(acc[0] / np.sqrt(2.0), floor[0])", "h = max(acc[0], floor[0])",
+             "précision horizontale du récepteur prise par axe au lieu d'être répartie sur nord et est",
+             ("tests/test_step7.py",)),
+    Mutation("M48", "src/navsim/ulog_reader.py", "east = k * np.cos(la) * np.sin(lo - lo0) * R_EARTH",
+             "east = k * np.sin(lo - lo0) * R_EARTH", "cos(latitude) oublié dans la projection locale",
+             ("tests/test_step7.py",)),
 )
 
 

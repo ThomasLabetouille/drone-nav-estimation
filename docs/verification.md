@@ -2,11 +2,11 @@
 
 Une bonne partie du code de ce dépôt a été écrite avec un assistant IA (Claude), et les tests aussi. Un test écrit en même temps que le code qu'il vérifie risque de partager ses erreurs : la même convention de rotation, le même signe, la même compréhension fausse d'une densité de bruit. La vérification est donc organisée en couches, et chaque couche passe par un chemin différent de celui du code.
 
-`python -m pytest` lance tout sauf les tests de mutation (environ huit minutes).
+`python -m pytest` lance tout sauf les tests de mutation (environ neuf minutes).
 
 ## 1. Tests de chaque étape
 
-`tests/test_step1.py` à `tests/test_step6.py`. Ils vérifient ce que chaque étape affirme : cohérence de la vérité terrain, consistance des filtres (NEES, NIS), effet de chaque correction du strapdown, observabilité du cap, comportement face à la latence, estimation du vent et apport du baromètre (à tirages identiques, avec et sans), rejet des pannes par le test d'innovation, et les deux blocages de l'étape 6 avec leurs protections : chaque blocage est reproduit sans protection, puis corrigé avec.
+`tests/test_step1.py` à `tests/test_step7.py`. Ils vérifient ce que chaque étape affirme : cohérence de la vérité terrain, consistance des filtres (NEES, NIS), effet de chaque correction du strapdown, observabilité du cap, comportement face à la latence, estimation du vent et apport du baromètre (à tirages identiques, avec et sans), rejet des pannes par le test d'innovation, et les deux blocages de l'étape 6 avec leurs protections : chaque blocage est reproduit sans protection, puis corrigé avec.
 
 ## 2. Oracles indépendants
 
@@ -31,6 +31,11 @@ Une bonne partie du code de ce dépôt a été écrite avec un assistant IA (Cla
 | Cap magnétique compensé en inclinaison | champ terrestre tourné par scipy pour 200 attitudes aléatoires |
 | Covariance initiale du vent (premier échantillon Pitot) | Monte-Carlo de 40 000 tirages de la relation non linéaire, termes croisés vent/cap/vitesse compris |
 | Générateurs magnétomètre et baro | leur spécification : biais initial, bruit, marche aléatoire, stationnarité de la dérive |
+| Rejeu (étape 7) | des logs simulés avec les défauts d'un vrai log (intervalles IMU de 5 ou 10 ms au hasard, autopilote monté tourné de 8°, vitesse air fausse de 20 %) : la vérité y est connue, et les états de calibration doivent retrouver le décalage et l'échelle |
+| Mesure de cap, états d'échelle de vitesse air et de décalage de dérapage (étape 7) | dérivée numérique de fonctions de mesure réécrites avec scipy, à plusieurs tangages |
+| Rediscrétisation pour un intervalle IMU quelconque (étape 7) | un filtre construit directement à cet intervalle |
+| Projection locale des positions GNSS (étape 7) | conversion exacte par coordonnées cartésiennes sur la même sphère |
+| Lecteur de logs PX4 (étape 7) | un petit log réel du dépôt pyulog : incréments IMU recalculés depuis les champs bruts, retard GNSS, champ magnétique attendu à l'endroit du vol |
 | Test d'innovation (étape 6) | 20 000 innovations tirées dans la covariance que le filtre prédit : le taux de rejet doit suivre la probabilité choisie (test binomial). Cela vérifie ensemble le NIS, le seuil et le nombre de degrés de liberté |
 
 ## 3. Propriétés
@@ -49,7 +54,7 @@ Dans le même fichier. Ils n'ont pas besoin de réponse de référence, seulemen
 
 ## 5. Tests de mutation
 
-`scripts/mutation_check.py` introduit 41 bugs plausibles, un par un, dans une copie du dépôt : un signe dans la matrice de transition, une correction d'attitude injectée dans le mauvais repère, une densité de bruit appliquée en `dt` au lieu de `√dt`, la gravité de signe inversé, un échantillon IMU de décalage... Il lance ensuite la suite de tests sur chaque copie. Une suite de tests qu'on n'a jamais vue échouer sur un bug connu ne prouve pas grand-chose ; c'est le test des tests. Le rapport est dans [`mutation_report.md`](mutation_report.md).
+`scripts/mutation_check.py` introduit 48 bugs plausibles, un par un, dans une copie du dépôt : un signe dans la matrice de transition, une correction d'attitude injectée dans le mauvais repère, une densité de bruit appliquée en `dt` au lieu de `√dt`, la gravité de signe inversé, un échantillon IMU de décalage... Il lance ensuite la suite de tests sur chaque copie. Une suite de tests qu'on n'a jamais vue échouer sur un bug connu ne prouve pas grand-chose ; c'est le test des tests. Le rapport est dans [`mutation_report.md`](mutation_report.md).
 
 La première exécution a montré deux faiblesses réelles :
 
@@ -76,7 +81,9 @@ Les mutations M26 à M34 visent l'étape 5 : signes des jacobiennes magnétomèt
 
 M35 à M41 visent l'étape 6 : test d'innovation inversé, mesure rejetée mais fusionnée quand même, mauvais nombre de degrés de liberté, protection contre le blocage désactivée, pannes simulées ignorées. À la première exécution, M37 a survécu : un seuil calculé sur 3 degrés de liberté au lieu de 6 rejette environ 1 % des bonnes positions GNSS au lieu de 0,1 %, et aucun test ne regardait le taux de rejet en vol. Un test le vérifie maintenant avant la perte GNSS (test binomial), et M37 est détectée.
 
-Le script s'arrête en erreur si une mutation survit sans être marquée comme attendue. En CI, il tourne chaque semaine et à la demande (environ 45 minutes).
+M42 à M48 visent l'étape 7 : intervalle IMU nominal au lieu du vrai, couplage cap / inclinaison oublié, signes des états de calibration, retard GNSS appliqué à l'envers, précision du récepteur mal répartie, cos(latitude) oublié dans la projection.
+
+Le script s'arrête en erreur si une mutation survit sans être marquée comme attendue. En CI, il tourne chaque semaine et à la demande (environ une heure).
 
 ## 6. Documentation et résultats
 
@@ -92,7 +99,7 @@ La CI GitHub lance ruff, puis toute la suite avec la couverture de code, puis la
 
 ## Ce que ces tests ne couvrent pas
 
-- **Le monde réel.** La vérité terrain et le filtre partagent les mêmes hypothèses : Terre plate, pas de rotation terrestre, vent horizontal sans turbulence, erreurs capteurs gaussiennes, champ magnétique sans perturbation locale. Les tests vérifient que le code est cohérent avec ce modèle, pas que le modèle décrit un vrai drone. Seuls des logs de vol réels peuvent le dire (étape 7).
+- **Le monde réel.** Dans les tests, la vérité terrain et le filtre partagent les mêmes hypothèses : Terre plate, pas de rotation terrestre, vent horizontal sans turbulence, erreurs capteurs gaussiennes. L'étape 7 rejoue de vrais vols, mais sans vérité terrain : le filtre y est jugé contre l'EKF2 et contre le GNSS après des pertes simulées. Ces vols ont déjà montré trois hypothèses fausses (magnétomètre, dérapage, vitesse air). Les tests de l'étape 7 reproduisent ces défauts en simulation, mais seulement ceux-là.
 - **Les tolérances.** Elles sont choisies à la main. Une tolérance trop large laisse passer un bug ; les tests de mutation sont là pour le mesurer, mais seulement sur les bugs qu'on a pensé à y mettre.
 - **Les tests statistiques.** Ils utilisent des graines fixes, donc ils sont reproductibles. Avec une autre graine, un test cohérent peut échouer rarement, par construction (un intervalle à 95 % est dépassé une fois sur vingt).
 - **La relecture.** Ces couches réduisent le risque qu'un bug passe, elles ne remplacent pas la relecture par quelqu'un qui comprend les équations.

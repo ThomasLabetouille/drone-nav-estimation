@@ -29,11 +29,11 @@ Généré par `scripts/step5_aiding.py`. Mission de 480 s dans un vent de 5 m/s 
 
 ## Provenance
 
-- Empreinte du code : `5ae7b6b4424f98dd` (14 fichiers, calculée par le script au moment de l'écriture)
+- Empreinte du code : `29f0aea76df3310d` (14 fichiers, calculée par le script au moment de l'écriture)
 - Commit git : non disponible
 - Graine : 2026, 40 runs
-- Paramètres : `02d3b7390e3faaad` (détail dans le fichier JSON voisin)
+- Paramètres : `a0a6210fc9d148f8` (détail dans le fichier JSON voisin)
 - Python 3.13.15, numpy 2.5.3, scipy 1.18.1
-- Généré le 2026-10-02T19:30:03Z
+- Généré le 2026-10-03T09:02:20Z
 
 `python scripts/check_provenance.py` compare cette empreinte au code actuel.

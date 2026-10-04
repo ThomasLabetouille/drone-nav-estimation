@@ -32,12 +32,21 @@ class MagConfig:
     # bias states are "consider" states (Schmidt-Kalman). None: always learn.
     # Without it, the filter gains false confidence in straight flight (see README).
     learn_bias_min_rate_deg_s: float | None = 5.0
+    # Step 7: "3d" fuses the three axes against field_ned, with bias states;
+    # "heading" fuses only the tilt-compensated heading, with heading_sigma_deg
+    # and no bias state: it only needs the declination, not the intensity and
+    # inclination of the field, which a real calibration often gets wrong.
+    fusion: str = "3d"
+    heading_sigma_deg: float = 10.0
 
 
 @dataclass(frozen=True)
 class PitotConfig:
     rate_hz: float = 10.0
     noise: float = 0.3        # [m/s] true airspeed
+    # Step 7: estimate a scale error of the airspeed, TAS_meas = (1 + s) |v - w|,
+    # with this initial sigma on s. None: no scale state.
+    scale_sigma0: float | None = None
 
 
 @dataclass(frozen=True)
@@ -73,12 +82,18 @@ class AidingConfig:
     # sigma covers the real sideslip of the airframe (here up to ~1.5 deg in
     # turns, from the trim angle). None: not used.
     sideslip_sigma_deg: float | None = None
+    # Step 7: estimate a constant sideslip offset b (yaw misalignment of the
+    # autopilot, or a real trim sideslip): the pseudo-measurement becomes
+    # beta - b = 0. Initial sigma of b; None: no offset state.
+    sideslip_offset_sigma0_deg: float | None = None
 
     def __post_init__(self):
         if self.pitot is not None and self.wind is None:
             raise ValueError("a Pitot tube needs a wind model (airspeed = |v - wind|)")
         if self.sideslip_sigma_deg is not None and self.pitot is None:
             raise ValueError("the sideslip pseudo-measurement is fused with the Pitot samples")
+        if self.sideslip_offset_sigma0_deg is not None and self.sideslip_sigma_deg is None:
+            raise ValueError("a sideslip offset needs the sideslip pseudo-measurement")
 
 
 class BaroStream:

@@ -1,14 +1,14 @@
 {
-  "generated_utc": "2026-10-02T20:13:45Z",
+  "generated_utc": "2026-10-03T09:20:25Z",
   "script": "scripts/step6_degraded.py",
-  "code_fingerprint": "22bbf3e1a3e3576efd29c1be5323e24841034dfce9726d090c57595aed53530c",
+  "code_fingerprint": "1d3525acff1a390c64a9f2a3c0637dd9eba268360b8f9dbedb9c9e93e6963752",
   "files": {
     "scripts/step6_degraded.py": "7952a19dcaa4d983870cb308e2e267dc13910420c880b991c6ab1410ee3bac9f",
     "src/navsim/__init__.py": "1ef54889932f5a1d5c3eae5402e991d560dd0dcf0956375745a5dec6e3ce6f68",
-    "src/navsim/aiding.py": "e0a97a9ab36c8e92c3de1986fe702af22954ba2b9885f00fc245a11644d67a9a",
-    "src/navsim/eskf.py": "96b62c3119e17e592bb6cddef0eff30f0e1048cf7725db774c60731bccbd6583",
+    "src/navsim/aiding.py": "c9aac89b20a1b4547152ccde03827db7d5d7dc0b0beb2d9504dc541423939406",
+    "src/navsim/eskf.py": "4b18fd5144c2291db3d42579c8fa5e6c3f3d6a3fdaa9c6435df26faa0d0eb2a4",
     "src/navsim/faults.py": "57e69ea3b3950666e9c092cbf6a857db38711115f812960635ee8784a3850b29",
-    "src/navsim/fusion.py": "c272b6a4e5831089cc6923814f84c33de88c4e967bdc0aea30bf3593356e8693",
+    "src/navsim/fusion.py": "5417df8942d93a5b6010c103ce69472f98d6c475d5ae09ea8c39e65cc30a2919",
     "src/navsim/gnss.py": "a9b9238e280364c3fe36d5ed0ea579ce29e32fd6059d911c4a4479f8e253a50b",
     "src/navsim/imu.py": "a31846359a39abfece337975a57a68b8337c1f244672529dd9d3dd19de55a316",
     "src/navsim/provenance.py": "68d1c2e8d87e9a9e50b39f7254018f8e9872032c5f4fc3aed1f4113528331373",
@@ -42,14 +42,18 @@
               0.00596469309312355,
               0.411071262355516
             ],
+            "fusion": "3d",
+            "heading_sigma_deg": 10.0,
             "learn_bias_min_rate_deg_s": 5.0,
             "noise": 0.003,
             "rate_hz": 50.0
           },
           "pitot": {
             "noise": 0.3,
-            "rate_hz": 10.0
+            "rate_hz": 10.0,
+            "scale_sigma0": null
           },
+          "sideslip_offset_sigma0_deg": null,
           "sideslip_sigma_deg": 6.0,
           "wind": {
             "init_from_airspeed": true,
@@ -99,14 +103,18 @@
               0.00596469309312355,
               0.411071262355516
             ],
+            "fusion": "3d",
+            "heading_sigma_deg": 10.0,
             "learn_bias_min_rate_deg_s": 5.0,
             "noise": 0.003,
             "rate_hz": 50.0
           },
           "pitot": {
             "noise": 0.3,
-            "rate_hz": 10.0
+            "rate_hz": 10.0,
+            "scale_sigma0": null
           },
+          "sideslip_offset_sigma0_deg": null,
           "sideslip_sigma_deg": 6.0,
           "wind": {
             "init_from_airspeed": true,
@@ -156,14 +164,18 @@
               0.00596469309312355,
               0.411071262355516
             ],
+            "fusion": "3d",
+            "heading_sigma_deg": 10.0,
             "learn_bias_min_rate_deg_s": 5.0,
             "noise": 0.003,
             "rate_hz": 50.0
           },
           "pitot": {
             "noise": 0.3,
-            "rate_hz": 10.0
+            "rate_hz": 10.0,
+            "scale_sigma0": null
           },
+          "sideslip_offset_sigma0_deg": null,
           "sideslip_sigma_deg": 6.0,
           "wind": {
             "init_from_airspeed": true,
@@ -213,14 +225,18 @@
               0.00596469309312355,
               0.411071262355516
             ],
+            "fusion": "3d",
+            "heading_sigma_deg": 10.0,
             "learn_bias_min_rate_deg_s": 5.0,
             "noise": 0.003,
             "rate_hz": 50.0
           },
           "pitot": {
             "noise": 0.3,
-            "rate_hz": 10.0
+            "rate_hz": 10.0,
+            "scale_sigma0": null
           },
+          "sideslip_offset_sigma0_deg": null,
           "sideslip_sigma_deg": 6.0,
           "wind": {
             "init_from_airspeed": true,
@@ -270,14 +286,18 @@
               0.00596469309312355,
               0.411071262355516
             ],
+            "fusion": "3d",
+            "heading_sigma_deg": 10.0,
             "learn_bias_min_rate_deg_s": 5.0,
             "noise": 0.003,
             "rate_hz": 50.0
           },
           "pitot": {
             "noise": 0.3,
-            "rate_hz": 10.0
+            "rate_hz": 10.0,
+            "scale_sigma0": null
           },
+          "sideslip_offset_sigma0_deg": null,
           "sideslip_sigma_deg": 6.0,
           "wind": {
             "init_from_airspeed": true,
@@ -327,14 +347,18 @@
               0.00596469309312355,
               0.411071262355516
             ],
+            "fusion": "3d",
+            "heading_sigma_deg": 10.0,
             "learn_bias_min_rate_deg_s": 5.0,
             "noise": 0.003,
             "rate_hz": 50.0
           },
           "pitot": {
             "noise": 0.3,
-            "rate_hz": 10.0
+            "rate_hz": 10.0,
+            "scale_sigma0": null
           },
+          "sideslip_offset_sigma0_deg": null,
           "sideslip_sigma_deg": 6.0,
           "wind": {
             "init_from_airspeed": true,
@@ -384,14 +408,18 @@
               0.00596469309312355,
               0.411071262355516
             ],
+            "fusion": "3d",
+            "heading_sigma_deg": 10.0,
             "learn_bias_min_rate_deg_s": 5.0,
             "noise": 0.003,
             "rate_hz": 50.0
           },
           "pitot": {
             "noise": 0.3,
-            "rate_hz": 10.0
+            "rate_hz": 10.0,
+            "scale_sigma0": null
           },
+          "sideslip_offset_sigma0_deg": null,
           "sideslip_sigma_deg": 6.0,
           "wind": {
             "init_from_airspeed": true,
@@ -441,14 +469,18 @@
               0.00596469309312355,
               0.411071262355516
             ],
+            "fusion": "3d",
+            "heading_sigma_deg": 10.0,
             "learn_bias_min_rate_deg_s": 5.0,
             "noise": 0.003,
             "rate_hz": 50.0
           },
           "pitot": {
             "noise": 0.3,
-            "rate_hz": 10.0
+            "rate_hz": 10.0,
+            "scale_sigma0": null
           },
+          "sideslip_offset_sigma0_deg": null,
           "sideslip_sigma_deg": 6.0,
           "wind": {
             "init_from_airspeed": true,
@@ -518,11 +550,14 @@
               0.00596469309312355,
               0.411071262355516
             ],
+            "fusion": "3d",
+            "heading_sigma_deg": 10.0,
             "learn_bias_min_rate_deg_s": 5.0,
             "noise": 0.003,
             "rate_hz": 50.0
           },
           "pitot": null,
+          "sideslip_offset_sigma0_deg": null,
           "sideslip_sigma_deg": null,
           "wind": null
         },
@@ -560,14 +595,18 @@
               0.00596469309312355,
               0.411071262355516
             ],
+            "fusion": "3d",
+            "heading_sigma_deg": 10.0,
             "learn_bias_min_rate_deg_s": 5.0,
             "noise": 0.003,
             "rate_hz": 50.0
           },
           "pitot": {
             "noise": 0.3,
-            "rate_hz": 10.0
+            "rate_hz": 10.0,
+            "scale_sigma0": null
           },
+          "sideslip_offset_sigma0_deg": null,
           "sideslip_sigma_deg": 6.0,
           "wind": {
             "init_from_airspeed": true,
@@ -612,14 +651,18 @@
               0.00596469309312355,
               0.411071262355516
             ],
+            "fusion": "3d",
+            "heading_sigma_deg": 10.0,
             "learn_bias_min_rate_deg_s": 5.0,
             "noise": 0.003,
             "rate_hz": 50.0
           },
           "pitot": {
             "noise": 0.3,
-            "rate_hz": 10.0
+            "rate_hz": 10.0,
+            "scale_sigma0": null
           },
+          "sideslip_offset_sigma0_deg": null,
           "sideslip_sigma_deg": 6.0,
           "wind": {
             "init_from_airspeed": true,
@@ -664,14 +707,18 @@
               0.00596469309312355,
               0.411071262355516
             ],
+            "fusion": "3d",
+            "heading_sigma_deg": 10.0,
             "learn_bias_min_rate_deg_s": 5.0,
             "noise": 0.003,
             "rate_hz": 50.0
           },
           "pitot": {
             "noise": 0.3,
-            "rate_hz": 10.0
+            "rate_hz": 10.0,
+            "scale_sigma0": null
           },
+          "sideslip_offset_sigma0_deg": null,
           "sideslip_sigma_deg": 6.0,
           "wind": {
             "init_from_airspeed": true,
@@ -711,14 +758,18 @@
               0.00596469309312355,
               0.411071262355516
             ],
+            "fusion": "3d",
+            "heading_sigma_deg": 10.0,
             "learn_bias_min_rate_deg_s": 5.0,
             "noise": 0.003,
             "rate_hz": 50.0
           },
           "pitot": {
             "noise": 0.3,
-            "rate_hz": 10.0
+            "rate_hz": 10.0,
+            "scale_sigma0": null
           },
+          "sideslip_offset_sigma0_deg": null,
           "sideslip_sigma_deg": 6.0,
           "wind": {
             "init_from_airspeed": true,
@@ -869,7 +920,7 @@
       "wind_n0": 0.0
     }
   },
-  "params_sha256": "25a66c5f203580db1f4d37fd95661783516cb71b12cd2831c63476e1c62856dc",
+  "params_sha256": "cfea53456d61250dc49fbcb1f122f1bc98c8f383730ecf0a30661a2783c092b0",
   "versions": {
     "python": "3.13.15",
     "numpy": "2.5.3",

@@ -50,7 +50,8 @@ import numpy as np
 from . import strapdown
 from .gnss import GNSSConfig
 from .imu import IMUConfig
-from .rotations import dcm_from_quat, quat_from_rotvec, quat_mul, quat_normalize, skew
+from .aiding import heading_from_magnetometer
+from .rotations import dcm_from_quat, euler_from_quat, quat_from_rotvec, quat_mul, quat_normalize, skew
 
 BLOCKS = {
     "position": slice(0, 3),
@@ -61,6 +62,7 @@ BLOCKS = {
 }
 GNSS_BIAS = slice(15, 18)  # when the GNSS bias is modelled (it always comes first)
 N = 15
+CALIB_RW = 1e-4   # [1/sqrt(s)] and [rad/sqrt(s)]: random walk of the calibration states (step 7)
 MIN_SIGMA = 1e-6
 
 
@@ -94,10 +96,14 @@ class ErrorStateEKF:
             sizes.append(("gnss_bias", 3))
         if aiding is not None and aiding.baro is not None:
             sizes.append(("baro_bias", 1))
-        if aiding is not None and aiding.mag is not None:
+        if aiding is not None and aiding.mag is not None and aiding.mag.fusion == "3d":
             sizes.append(("mag_bias", 3))
         if aiding is not None and aiding.wind is not None:
             sizes.append(("wind", 2))
+        if aiding is not None and aiding.pitot is not None and aiding.pitot.scale_sigma0 is not None:
+            sizes.append(("tas_scale", 1))
+        if aiding is not None and aiding.sideslip_offset_sigma0_deg is not None:
+            sizes.append(("beta_offset", 1))
         n = 15
         for name, size in sizes:
             blocks[name] = slice(n, n + size)
@@ -143,10 +149,22 @@ class ErrorStateEKF:
             self.m_n = np.asarray(m.field_ned, dtype=float)
         if "wind" in blocks:
             qd[blocks["wind"]] = aiding.wind.rw**2 * dt
+        # calibration states: nearly constant (slow random walk)
+        if "tas_scale" in blocks:
+            qd[blocks["tas_scale"]] = CALIB_RW**2 * dt
+        if "beta_offset" in blocks:
+            qd[blocks["beta_offset"]] = CALIB_RW**2 * dt
         if aiding is not None and aiding.pitot is not None:
             self.R_pitot = np.array([[aiding.pitot.noise**2]])
         self.Qd = np.diag(qd)
         self.dt = dt
+        # Correlation times of the Gauss-Markov states (inf: white noise or
+        # random walk), to rediscretise for an IMU interval other than dt.
+        self.tau = np.full(n, np.inf)
+        if model_gnss_bias:
+            self.tau[blocks["gnss_bias"]] = gnss_cfg.corr_tau
+        if "baro_bias" in blocks:
+            self.tau[blocks["baro_bias"]] = aiding.baro.drift_tau
         self.eye = np.eye(n)
         # Innovation gates (step 6): measurement name -> NIS threshold. An
         # update whose NIS exceeds it is rejected for that run. Empty: no gating.
@@ -221,8 +239,30 @@ class ErrorStateEKF:
     def copy_nominal(self):
         return self.p.copy(), self.v.copy(), self.q.copy(), self.bg.copy(), self.ba.copy()
 
-    def predict(self, dth_meas: np.ndarray, dv_meas: np.ndarray):
-        dt, n = self.dt, self.n
+    def _discrete(self, dt: float):
+        """(Qd, transition of the extra states) for an IMU interval dt.
+        Exactly the cached values when dt is the nominal interval (step 7:
+        real IMU samples are not evenly spaced)."""
+        if dt == self.dt:
+            return self.Qd, self.phi_diag
+        gm = np.isfinite(self.tau)
+        scale = np.where(gm, 0.0, dt / self.dt)
+        phi = self.phi_diag.copy()
+        phi[gm] = np.exp(-dt / self.tau[gm])
+        q_nom = np.diagonal(self.Qd, axis1=-2, axis2=-1)
+        # Gauss-Markov: qd = sigma^2 (1 - phi^2), sigma^2 = qd_nom / (1 - phi_nom^2)
+        sig2 = np.where(gm, q_nom / np.where(gm, 1.0 - self.phi_diag**2, 1.0), 0.0)
+        q = q_nom * scale + np.where(gm, sig2 * (1.0 - phi**2), 0.0)
+        idx = np.arange(self.n)
+        Qd = np.zeros_like(self.Qd)
+        Qd[..., idx, idx] = q
+        return Qd, phi
+
+    def predict(self, dth_meas: np.ndarray, dv_meas: np.ndarray, dt: float | None = None):
+        """dt: interval of this IMU sample if it differs from the nominal one."""
+        dt = self.dt if dt is None else float(dt)
+        n = self.n
+        Qd, phi_diag = self._discrete(dt)
         dth = dth_meas - self.bg * dt
         dv = dv_meas - self.ba * dt
         C = dcm_from_quat(self.q)
@@ -234,7 +274,7 @@ class ErrorStateEKF:
         self.p, self.v, self.q = strapdown.step(self.p, self.v, self.q, dth, dv,
                                                 prev_dth, prev_dv, dt, "full", first)
         self._prev = (dth, dv)
-        self.extra = self.extra * self.phi_diag[15:]
+        self.extra = self.extra * phi_diag[15:]
 
         # Phi = I + F dt + (F dt)^2 / 2, written out block by block (F is sparse).
         fx = skew(f_n)
@@ -248,9 +288,9 @@ class ErrorStateEKF:
         Phi[:, 0:3, 12:15] += -C * h
         Phi[:, 3:6, 9:12] += (fx @ C) * h
         idx = np.arange(15, n)
-        Phi[:, idx, idx] = self.phi_diag[15:]  # exact for Gauss-Markov and random walk
+        Phi[:, idx, idx] = phi_diag[15:]  # exact for Gauss-Markov and random walk
         self.Phi = Phi  # kept for inspection and tests
-        P = Phi @ self.P @ np.swapaxes(Phi, 1, 2) + self.Qd
+        P = Phi @ self.P @ np.swapaxes(Phi, 1, 2) + Qd
         self.P = 0.5 * (P + np.swapaxes(P, 1, 2))
 
     # --- measurement updates ------------------------------------------------
@@ -301,10 +341,11 @@ class ErrorStateEKF:
         self.P = 0.5 * (P + np.swapaxes(P, 1, 2))
         return y, S, nis
 
-    def update_gnss(self, z: np.ndarray):
-        """z: (runs, 6) = position and velocity in NED."""
+    def update_gnss(self, z: np.ndarray, R: np.ndarray | None = None):
+        """z: (runs, 6) = position and velocity in NED. R: covariance of this
+        fix, when the receiver reports its own accuracy (step 7)."""
         y = z - np.concatenate([self.p + self.bgnss, self.v], axis=1)
-        return self.update(y, self.H_gnss, self.R_gnss, gate=self.gates.get("gnss"))
+        return self.update(y, self.H_gnss, self.R_gnss if R is None else R, gate=self.gates.get("gnss"))
 
     def update_baro(self, z: np.ndarray):
         """z: (runs,) altitude. Altitude is -p_D, so H has -1 on dp_D."""
@@ -328,6 +369,25 @@ class ErrorStateEKF:
         frozen = None if learn_bias is None else (self.blocks["mag_bias"], ~np.asarray(learn_bias))
         return self.update(y, H, self.R_mag, frozen, gate=self.gates.get("mag"))
 
+    def update_mag_heading(self, z: np.ndarray, sigma_rad: float, declination_rad: float):
+        """z: (runs, 3) magnetic field in the body frame, used only for its
+        heading (step 7). The field is levelled with the estimated roll and
+        pitch, its horizontal angle plus the declination is the measured
+        heading. Predicted: the yaw angle of the estimate. With q_true =
+        exp(dtheta) q and dtheta in NED, its derivative is
+        d(psi) = dtheta_D + tan(pitch) (cos(psi) dtheta_N + sin(psi) dtheta_E):
+        a rotation about the vertical changes the yaw by exactly its angle, and
+        a tilt error changes it too when the nose is up or down. The error of
+        the levelling itself (tilt error times tan(inclination)) is left in sigma."""
+        roll, pitch, yaw = euler_from_quat(self.q)
+        psi = heading_from_magnetometer(z, roll, pitch, declination_rad)
+        y = np.angle(np.exp(1j * (psi - yaw)))[:, None]
+        H = np.zeros((self.runs, 1, self.n))
+        H[:, 0, 6] = np.tan(pitch) * np.cos(yaw)
+        H[:, 0, 7] = np.tan(pitch) * np.sin(yaw)
+        H[:, 0, 8] = 1.0
+        return self.update(y, H, np.array([[sigma_rad**2]]), gate=self.gates.get("mag_heading"))
+
     def update_airspeed(self, z: np.ndarray):
         """z: (runs,) true airspeed = |v - w|, w = (w_N, w_E, 0).
 
@@ -337,11 +397,18 @@ class ErrorStateEKF:
         v_air = self.v - w
         speed = np.linalg.norm(v_air, axis=1)
         u = v_air / speed[:, None]
-        y = (z - speed)[:, None]
+        k = 1.0 + self.tas_scale()
+        y = (z - k * speed)[:, None]
         H = np.zeros((self.runs, 1, self.n))
-        H[:, 0, 3:6] = u
-        H[:, 0, self.blocks["wind"]] = -u[:, :2]
+        H[:, 0, 3:6] = k[:, None] * u
+        H[:, 0, self.blocks["wind"]] = -k[:, None] * u[:, :2]
+        if "tas_scale" in self.blocks:
+            H[:, 0, self.blocks["tas_scale"]] = speed[:, None]
         return self.update(y, H, self.R_pitot, gate=self.gates.get("pitot"))
+
+    def tas_scale(self):
+        """Estimated airspeed scale error s (0 without the state)."""
+        return self.nominal("tas_scale")[:, 0] if "tas_scale" in self.blocks else np.zeros(self.runs)
 
     def update_sideslip(self, sigma_rad: float):
         """Synthetic measurement of zero sideslip: a fixed-wing flies with its
@@ -358,12 +425,15 @@ class ErrorStateEKF:
         V = np.linalg.norm(v_air, axis=1)
         Ct = np.swapaxes(dcm_from_quat(self.q), 1, 2)
         beta = np.einsum("rj,rj->r", Ct[:, 1, :], v_air) / V
-        y = (0.0 - beta)[:, None]
+        b = self.nominal("beta_offset")[:, 0] if "beta_offset" in self.blocks else 0.0
+        y = (0.0 - (beta - b))[:, None]
         # derivative of beta w.r.t. the air velocity, including that of 1/V
         d_vair = (Ct[:, 1, :] - beta[:, None] * v_air / V[:, None]) / V[:, None]
         H = np.zeros((self.runs, 1, self.n))
         H[:, 0, 3:6] = d_vair
         H[:, 0, self.blocks["wind"]] = -d_vair[:, :2]
         H[:, 0, 6:9] = (Ct @ skew(v_air))[:, 1, :] / V[:, None]
+        if "beta_offset" in self.blocks:
+            H[:, 0, self.blocks["beta_offset"]] = -1.0
         return self.update(y, H, np.array([[sigma_rad**2]]), gate=self.gates.get("sideslip"))
 
