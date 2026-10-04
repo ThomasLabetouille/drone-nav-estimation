@@ -4,9 +4,11 @@ on:
   push:
   pull_request:
 
+# ubuntu-24.04 rather than ubuntu-latest: a new image changes the compiler
+# (and its warnings, errors with -Werror) without any change in the code.
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -16,7 +18,7 @@ jobs:
       - run: ruff check src scripts tests
 
   cpp:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - run: sudo apt-get update && sudo apt-get install -y libeigen3-dev
@@ -25,7 +27,7 @@ jobs:
       - run: ctest --test-dir cpp/build --output-on-failure
 
   pytest:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -33,5 +35,8 @@ jobs:
           python-version: "3.12"
       - run: sudo apt-get update && sudo apt-get install -y libeigen3-dev
       - run: pip install -e ".[dev]"
-      - run: python -m pytest -q --cov=navsim --cov-report=term-missing
+      # the C++ and ULog tests skip themselves when their tools are missing;
+      # here they must run, so check the tools first
+      - run: python -c "import pyulog, pygeomag; from navsim import cpp_bridge; assert cpp_bridge.available()"
+      - run: python -m pytest -q -rs --cov=navsim --cov-report=term-missing
       - run: python scripts/check_provenance.py

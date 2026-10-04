@@ -197,23 +197,22 @@ class ErrorStateEKF:
         """Restart position and velocity on a GNSS fix, for the runs in mask
         (protection against a gate that keeps rejecting GNSS, step 6).
 
-        p = z_p - b_gnss and v = z_v: the new errors are those of the fix.
-        Position and velocity lose their correlations with the other states,
-        except the position with the GNSS bias it was computed with."""
+        p = z_p - b_gnss and v = z_v: the new errors are those of the fix,
+        dp = -db + n_p and dv = n_v, so P becomes J P J^T + R with J the map
+        from the old errors to the new ones. The velocity loses all its
+        correlations; the position keeps, with a minus sign, those of the
+        GNSS bias it was computed with (with the bias itself, but also with
+        every state the bias is correlated with: dropping those would leave a
+        P that is not positive semi-definite, tests/test_step6.py)."""
         if not mask.any():
             return
         pv = slice(0, 6)
-        R = self.R_gnss
-        P = self.P[mask]
-        P[:, pv, :] = 0.0
-        P[:, :, pv] = 0.0
-        P[:, pv, pv] = R
+        J = np.eye(self.n)
+        J[pv, pv] = 0.0
         if "gnss_bias" in self.blocks:
-            b = self.blocks["gnss_bias"]
-            Pbb = self.P[mask][:, b, b]
-            P[:, 0:3, 0:3] += Pbb
-            P[:, 0:3, b] = -Pbb
-            P[:, b, 0:3] = -Pbb
+            J[0:3, self.blocks["gnss_bias"]] = -np.eye(3)
+        P = J @ self.P[mask] @ J.T
+        P[:, pv, pv] += self.R_gnss
         self.P[mask] = P
         self.p[mask] = z[mask, 0:3] - self.bgnss[mask]
         self.v[mask] = z[mask, 3:6]

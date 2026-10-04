@@ -2,7 +2,7 @@
 
 Une bonne partie du code de ce dépôt a été écrite avec un assistant IA (Claude), et les tests aussi. Un test écrit en même temps que le code qu'il vérifie risque de partager ses erreurs : la même convention de rotation, le même signe, la même compréhension fausse d'une densité de bruit. La vérification est donc organisée en couches, et chaque couche passe par un chemin différent de celui du code.
 
-`python -m pytest` lance tout sauf les tests de mutation (environ onze minutes).
+`python -m pytest` lance tout sauf les tests de mutation (environ treize minutes).
 
 ## 1. Tests de chaque étape
 
@@ -36,6 +36,12 @@ Une bonne partie du code de ce dépôt a été écrite avec un assistant IA (Cla
 | Rediscrétisation pour un intervalle IMU quelconque (étape 7) | un filtre construit directement à cet intervalle |
 | Projection locale des positions GNSS (étape 7) | conversion exacte par coordonnées cartésiennes sur la même sphère |
 | Lecteur de logs PX4 (étape 7) | un petit log réel du dépôt pyulog : incréments IMU recalculés depuis les champs bruts, retard GNSS, champ magnétique attendu à l'endroit du vol |
+| Lecteur de logs PX4, branches absentes du petit log (étape 7) | des logs synthétiques aux valeurs connues par construction : origine de l'EKF2 déplacée en vol, positions en degrés ou en entiers, `timestamp_sample` nul ou non croissant, retard de chaque capteur, choix du topic de vitesse air, échantillons IMU invalides, date UTC du champ WMM |
+| Projection locale de PX4 (étape 7) | la formule inverse de PX4 (`map_projection_reproject`), à 30 km, à l'équateur et près de l'antiméridien |
+| Logs simulés du rejeu (étape 7) | un strapdown écrit dans le test, avec les intervalles irréguliers du log et un IMU parfait : il doit retrouver l'attitude, la vitesse et la position de référence, autopilote monté tourné ou non |
+| Erreur de fin de coupure, conventions de signe de la comparaison (étape 7) | des journaux construits à la main, résultats calculés à la main |
+| Flux d'événements envoyé au C++ (étape 8) | la boucle de `replay.run` réécrite dans le test, contre la fusion vectorisée de `events_array` |
+| Réinitialisation sur le GNSS (étape 6) | Monte-Carlo de 400 000 tirages : erreurs tirées dans P, bruit du point GNSS, réinitialisation appliquée à chaque tirage |
 | Portage C++ (étape 8) | la référence Python, état par état à chaque époque GNSS, NIS et décisions du test d'innovation comprises, sur des vols simulés qui passent par toutes les branches de la boucle |
 | Absence d'allocation dynamique en C++ (étape 8) | la garde d'Eigen (`EIGEN_RUNTIME_NO_MALLOC`) et un `operator new` global qui compte les allocations, lui-même vérifié par un test |
 | Test d'innovation (étape 6) | 20 000 innovations tirées dans la covariance que le filtre prédit : le taux de rejet doit suivre la probabilité choisie (test binomial). Cela vérifie ensemble le NIS, le seuil et le nombre de degrés de liberté |
@@ -56,7 +62,7 @@ Dans le même fichier. Ils n'ont pas besoin de réponse de référence, seulemen
 
 ## 5. Tests de mutation
 
-`scripts/mutation_check.py` introduit 55 bugs plausibles, un par un, dans une copie du dépôt : un signe dans la matrice de transition, une correction d'attitude injectée dans le mauvais repère, une densité de bruit appliquée en `dt` au lieu de `√dt`, la gravité de signe inversé, un échantillon IMU de décalage... Il lance ensuite la suite de tests sur chaque copie. Une suite de tests qu'on n'a jamais vue échouer sur un bug connu ne prouve pas grand-chose ; c'est le test des tests. Le rapport est dans [`mutation_report.md`](mutation_report.md).
+`scripts/mutation_check.py` introduit 63 bugs plausibles, un par un, dans une copie du dépôt : un signe dans la matrice de transition, une correction d'attitude injectée dans le mauvais repère, une densité de bruit appliquée en `dt` au lieu de `√dt`, la gravité de signe inversé, un échantillon IMU de décalage... Il lance ensuite la suite de tests sur chaque copie. Une suite de tests qu'on n'a jamais vue échouer sur un bug connu ne prouve pas grand-chose ; c'est le test des tests. Le rapport est dans [`mutation_report.md`](mutation_report.md).
 
 La première exécution a montré deux faiblesses réelles :
 
@@ -65,7 +71,13 @@ La première exécution a montré deux faiblesses réelles :
 
 J'ai ajouté un test qui confronte le générateur à sa spécification, et une variante « bruit seul » de la comparaison covariance/Monte-Carlo. Les deux mutations sont maintenant détectées directement.
 
-Une mutation survit, et c'est attendu : **M06**, la forme de Joseph remplacée par la forme courte. C'est un mutant équivalent : avec le gain optimal, les deux formes sont égales en arithmétique exacte.
+### M06 : le mutant que je croyais équivalent
+
+M06 remplace la mise à jour en forme de Joseph, `(I − KH) P (I − KH)ᵀ + K R Kᵀ`, par la forme courte `(I − KH) P`. Jusqu'à l'étape 8, elle survivait, et je l'avais classée comme mutant équivalent : avec le gain optimal, les deux formes sont égales en arithmétique exacte.
+
+C'était vrai jusqu'à l'étape 4, et faux depuis l'étape 5. Les biais du magnétomètre y deviennent des états « consider » en ligne droite : le filtre met leurs lignes du gain à zéro. Ce gain n'est plus le gain optimal, et seule la forme de Joseph donne alors la bonne covariance. La forme courte donne une covariance fausse, et les innovations du magnétomètre ne suivent plus la loi que le filtre leur prédit. Le test des taux de fausse alarme ajouté après l'étape 8 l'a vu : avec la forme courte, le magnétomètre n'est rejeté aucune fois sur 21 000 mesures au lieu d'environ 21 (p = 10⁻⁹). Aucun mutant n'est plus marqué comme attendu.
+
+C'est la deuxième fois qu'une mutation classée « attendue » cachait quelque chose (voir M05 ci-dessous). Une hypothèse d'équivalence se vérifie comme le reste, avec un test qui la mettrait en défaut.
 
 ### M05 : la mutation qui avait raison
 
@@ -86,6 +98,16 @@ M35 à M41 visent l'étape 6 : test d'innovation inversé, mesure rejetée mais 
 M42 à M48 visent l'étape 7 : intervalle IMU nominal au lieu du vrai, couplage cap / inclinaison oublié, signes des états de calibration, retard GNSS appliqué à l'envers, précision du récepteur mal répartie, cos(latitude) oublié dans la projection.
 
 M49 à M55 visent le C++ : signes de la matrice de transition, de la jacobienne de réinitialisation, du décalage de dérapage et de la corrélation vent / cap, test d'innovation inversé, couplage cap / inclinaison oublié, protection du Pitot oubliée dans la boucle. Le test les détecte parce qu'il compare le C++ à la version Python, elle-même vérifiée par tout le reste. Chaque mutation C++ demande une recompilation complète, dans un dossier neuf.
+
+### La réinitialisation sur le GNSS
+
+Après l'étape 8, j'ai relu la couverture des tests des étapes 6 à 8 et ajouté ceux qui manquaient (lecteur de logs, flux d'événements, chemins d'erreur du programme C++, taux de fausse alarme de chaque capteur). L'un d'eux a trouvé un bug de l'étape 6.
+
+La protection contre le blocage GNSS remet la position sur le point GNSS : `p = z − b`, avec `b` le biais GNSS estimé. L'erreur de la nouvelle position vaut donc `−δb` plus le bruit du point. J'avais gardé la corrélation de la position avec le biais, mais mis à zéro ses corrélations avec tout le reste. Or le biais est lui-même corrélé à l'attitude, à la vitesse et aux biais IMU, et la position hérite de ces corrélations. Sans elles, `P` n'est plus une covariance possible. Sur une covariance aléatoire dense, sa plus petite valeur propre valait −1,4.
+
+Le test tire 400 000 erreurs dans `P`, applique la réinitialisation à chaque tirage, et compare la covariance empirique à celle du filtre. La correction écrit la réinitialisation comme une application linéaire des anciennes erreurs vers les nouvelles, `P ← J P Jᵀ + R`, ce qui donne toutes les corrélations d'un coup. Les logs réels et le C++ ne sont pas touchés : sans état de biais GNSS, les deux formules sont identiques, bit pour bit. Dans les cas de l'étape 6 où la réinitialisation se déclenche, l'effet est faible : seul le NEES de J5 change, de 49,3 à 49,1. Aucun test système ne l'aurait vu. M56 vérifie que le test le détecte.
+
+M57 à M63 visent les autres tests ajoutés : origine de l'EKF2, choix du topic de vitesse air, `timestamp_sample` ignoré, erreur de fin de coupure sans propagation jusqu'au point GNSS, mesure datée exactement d'un échantillon IMU traitée un échantillon trop tard dans le flux C++, vitesse air minimale ignorée en Python et en C++.
 
 Le script s'arrête en erreur si une mutation survit sans être marquée comme attendue. En CI, il tourne chaque semaine et à la demande (environ une heure).
 

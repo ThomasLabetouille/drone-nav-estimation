@@ -18,7 +18,8 @@ from scipy.spatial.transform import Rotation
 
 from navsim import aiding, gnss, imu, replay, trajectory3d
 from navsim.eskf import ErrorStateEKF
-from navsim.rotations import quat_from_euler
+from navsim.rotations import (quat_conj, quat_from_euler, quat_from_rotvec, quat_mul, quat_normalize, quat_rotate,
+                              rotvec_from_quat)
 from navsim.sensors import BaroConfig
 
 DEG = np.pi / 180
@@ -311,3 +312,346 @@ def test_baro_config_in_replay_needs_the_drift_state():
     with pytest.raises(ValueError):
         ErrorStateEKF(imu.IMUConfig(), gnss.GNSSConfig(), 0.005, 1,
                       aiding=aiding.AidingConfig(baro=BaroConfig(drift_sigma=0.0)))
+
+
+# --- simulated logs: the generator itself -------------------------------------------
+
+PERFECT = imu.IMUConfig(gyro_noise=0.0, gyro_bias0=0.0, gyro_bias_rw=0.0,
+                        accel_noise=0.0, accel_bias0=0.0, accel_bias_rw=0.0)
+
+
+@pytest.mark.parametrize("mount_yaw_deg", [0.0, 8.0])
+def test_simulated_log_with_a_perfect_imu_reproduces_its_reference(mount_yaw_deg):
+    """The generator merges increments and turns them into the autopilot
+    frame; the reference attitude is that of the autopilot. A strapdown
+    written here, with the uneven intervals of the log, must then follow the
+    reference: an increment merged wrongly, or measured in one frame and
+    referenced in another, shows up at once (8 deg of mounting yaw gives an
+    8 deg error)."""
+    tr = trajectory3d.generate(dataclasses.replace(trajectory3d.MISSION_WIND, duration=120.0))
+    mag = aiding.MagConfig(noise=0.0, bias0=0.0, bias_rw=0.0)
+    d = replay.from_simulation(tr, PERFECT, np.random.default_rng(0), mag_cfg=mag, mount_yaw_deg=mount_yaw_deg)
+    g = np.array([0.0, 0.0, replay.G])
+    q, v, p = d.ref_q[0].copy(), d.ref_v[0].copy(), d.ref_p[0].copy()
+    i_ref = np.searchsorted(d.t_ref, d.t_imu)
+    np.testing.assert_allclose(d.t_ref[i_ref], d.t_imu, atol=1e-9)
+    worst = np.zeros(3)
+    for k in range(len(d.t_imu)):
+        dth, dv, dt = d.dtheta[k], d.dvel[k], d.dt_imu[k]
+        v_new = v + quat_rotate(q, dv + 0.5 * np.cross(dth, dv)) + g * dt
+        p = p + 0.5 * (v + v_new) * dt
+        v = v_new
+        q = quat_normalize(quat_mul(q, quat_from_rotvec(dth)))
+        i = i_ref[k]
+        worst = np.maximum(worst, [np.linalg.norm(rotvec_from_quat(quat_mul(quat_conj(d.ref_q[i]), q))),
+                                   np.linalg.norm(v - d.ref_v[i]), np.linalg.norm(p - d.ref_p[i])])
+    assert worst[0] < np.radians(0.001)        # 120 s: 5e-5 deg in practice
+    assert worst[1] < 0.005                    # m/s
+    assert worst[2] < 0.05                     # m
+    # a perfect magnetometer measures the field in the autopilot frame
+    i_mag = np.searchsorted(d.t_ref, d.t_mag)
+    expected = quat_rotate(quat_conj(d.ref_q[i_mag]), np.broadcast_to(d.field_ned, (len(i_mag), 3)))
+    np.testing.assert_allclose(d.mag, expected, atol=1e-12)
+
+
+# --- comparison with the reference, outages -----------------------------------------
+
+def fake_replay_log(t, p, v, q, sigma, gnss, extra=None, blocks=None):
+    E = len(t)
+    return replay.ReplayLog(t=np.asarray(t, float), p=np.asarray(p, float), v=np.asarray(v, float),
+                            q=np.asarray(q, float), sigma=np.asarray(sigma, float), blocks=blocks or {},
+                            extra=np.zeros((E, 0)) if extra is None else np.asarray(extra, float),
+                            bg=np.zeros((E, 3)), ba=np.zeros((E, 3)), gnss=np.asarray(gnss, float),
+                            gnss_status=np.zeros(E, np.int8), nis={}, wind_started=None, info={})
+
+
+def test_compare_sign_conventions():
+    """Position, velocity, Euler angles and wind: estimate minus reference.
+    datt is the rotation from the estimate to the reference in NED, so its
+    z component is the reference heading minus the estimated one (the step 7
+    script uses -datt[:, 2] as the heading error). The reference is
+    interpolated at the replay epochs, the heading difference is wrapped."""
+    t_ref = np.arange(0.0, 11.0)
+    ref_p = np.column_stack([10.0 * t_ref, -2.0 * t_ref, np.full(11, -100.0)])
+    ref_v = np.tile([10.0, -2.0, 0.0], (11, 1))
+    yaw_ref = np.radians(179.0)
+    ref_q = np.tile(quat_from_euler(0.02, -0.03, yaw_ref), (11, 1))
+    ref_wind = np.tile([3.0, -1.0], (11, 1))
+    data = replay.LogData(name="x", t_imu=np.zeros(1), dt_imu=np.ones(1), dtheta=np.zeros((1, 3)),
+                          dvel=np.zeros((1, 3)), t_gnss=np.zeros(1), gnss_p=np.zeros((1, 3)),
+                          gnss_v=np.zeros((1, 3)), gnss_sigma=np.zeros((1, 3)), t_ref=t_ref, ref_p=ref_p,
+                          ref_v=ref_v, ref_q=ref_q, ref_wind=ref_wind)
+    t = np.array([2.5, 3.5, 20.0])            # the last epoch is after the reference: dropped
+    d_yaw = np.radians(2.0)                   # estimate 2 deg to the right: 181 deg = -179 deg
+    q_est = quat_mul(quat_from_euler(0.0, 0.0, d_yaw), ref_q[0])       # rotation about NED down
+    log = fake_replay_log(t, np.column_stack([10.0 * t + 1.0, -2.0 * t, np.full(3, -103.0)]),
+                          np.tile([10.5, -2.0, 0.0], (3, 1)), np.tile(q_est, (3, 1)), np.ones((3, 17)),
+                          np.zeros((3, 6)), extra=np.tile([3.5, -1.0], (3, 1)), blocks={"wind": slice(15, 17)})
+    c = replay.compare(log, data)
+    np.testing.assert_array_equal(c["t"], [2.5, 3.5])
+    np.testing.assert_allclose(c["dp"], [[1.0, 0.0, -3.0]] * 2, atol=1e-12)
+    np.testing.assert_allclose(c["dv"], [[0.5, 0.0, 0.0]] * 2, atol=1e-12)
+    np.testing.assert_allclose(c["dyaw"], d_yaw, atol=1e-9)
+    np.testing.assert_allclose(c["datt"], [[0.0, 0.0, -d_yaw]] * 2, atol=1e-9)
+    np.testing.assert_allclose(c["dwind"], [[0.5, 0.0]] * 2, atol=1e-12)
+
+
+def test_outage_windows():
+    w = replay.outage_windows((100.0, 500.0))
+    assert w == ((130.0, 160.0), (220.0, 250.0), (310.0, 340.0), (400.0, 430.0))
+    assert all(100.0 + 30.0 <= a and b <= 500.0 - 30.0 for a, b in w)
+    assert replay.outage_windows((100.0, 180.0)) == ()            # too short for one outage
+    assert replay.outage_windows((0.0, 200.0), duration=20.0, spacing=50.0, margin=10.0) == (
+        (10.0, 30.0), (60.0, 80.0), (110.0, 130.0), (160.0, 180.0))
+
+
+def test_outage_errors_on_a_known_log():
+    """Error at the end of an outage: the last dead reckoning estimate,
+    carried to the time of the first fix after the outage by its velocity,
+    against that fix. Announced sigma: horizontal, from that last estimate."""
+    t = [0.0, 1.0, 2.0, 3.0, 4.0]
+    p = [[0, 0, 0], [1, 0, 0], [2, 1, 0], [9, 9, 9], [9, 9, 9]]
+    v = [[1, 0, 0], [1, 0, 0], [1, 2, 0], [0, 0, 0], [0, 0, 0]]
+    sigma = np.ones((5, 15))
+    sigma[2, :2] = [3.0, 4.0]
+    gnss = np.zeros((5, 6))
+    gnss[3, :3] = [3.0, 7.0, 50.0]         # vertical ignored
+    log = fake_replay_log(t, p, v, np.tile([1.0, 0, 0, 0], (5, 1)), sigma, gnss)
+    e = replay.outage_errors(log, ((1.5, 3.0), (3.5, 10.0)))   # the second ends after the log: skipped
+    # estimate carried to t=3: (2, 1) + (1, 2) * 1 = (3, 3); fix (3, 7): error 4
+    np.testing.assert_allclose(e, [[4.0, 5.0]])
+
+
+# --- replay loop: thresholds and protections ----------------------------------------
+
+def test_airspeed_below_the_minimum_is_not_fused(simulated):
+    """No Pitot or sideslip update below min_airspeed (taxi, take-off run),
+    and the wind starts on the first airspeed above it."""
+    d = dataclasses.replace(simulated, tas=simulated.tas.copy())
+    slow = (d.t_tas < 30.0) | ((d.t_tas > 100.0) & (d.t_tas < 120.0))
+    d.tas[slow] = 5.0
+    log = replay.run(d, full_config(mag=aiding.MagConfig(fusion="heading")))
+    for name in ("pitot", "sideslip"):
+        t = log.nis[name][0]
+        assert len(t) > 1000
+        assert not np.any(t < 30.0) and not np.any((t > 100.0) & (t < 120.0)), name
+    assert log.wind_started == d.t_tas[d.t_tas >= 30.0][0]
+
+
+def test_gnss_reset_in_the_replay(simulated):
+    """A 25 m jump of the GNSS for 40 s with a 10 s reset delay: rejected
+    for 10 s, then the filter restarts on the fix, with the accuracy of the
+    fix; same when the jump ends."""
+    d = dataclasses.replace(simulated, gnss_p=simulated.gnss_p.copy())
+    jump = (d.t_gnss >= 80.0) & (d.t_gnss < 120.0)
+    d.gnss_p[jump] += [0.0, 25.0, 0.0]
+    cfg = full_config(mag=aiding.MagConfig(fusion="heading"), gnss_reset_after_s=10.0)
+    log = replay.run(d, cfg)
+    st = lambda a, b: log.gnss_status[(log.t >= a) & (log.t < b)]
+    assert np.all(st(80.0, 89.9) == 1)
+    assert np.mean(st(92.0, 120.0) == 0) > 0.95
+    assert np.all(st(120.0, 129.9) == 1)
+    assert np.mean(st(132.0, 240.0) == 0) > 0.95
+    resets = np.flatnonzero((log.gnss_status == 1) & np.all(log.p == log.gnss[:, :3], axis=1))
+    np.testing.assert_allclose(log.t[resets], [90.0, 130.0], atol=0.21)
+    for j in resets:
+        s = replay._sigma(d.gnss_sigma[0], cfg.gnss_floor)
+        np.testing.assert_allclose(log.sigma[j, :6], s, rtol=1e-12)
+        np.testing.assert_array_equal(log.v[j], log.gnss[j, 3:])
+
+
+def test_config_like_ekf2_with_air_data_and_magnetometer():
+    t = lambda hz, n: np.arange(n) / hz
+    data = replay.LogData(name="x", t_imu=np.zeros(1), dt_imu=np.full(1, 0.004), dtheta=np.zeros((1, 3)),
+                          dvel=np.zeros((1, 3)), t_gnss=np.zeros(1), gnss_p=np.zeros((1, 3)),
+                          gnss_v=np.zeros((1, 3)), gnss_sigma=np.zeros((1, 3)),
+                          t_baro=t(20.0, 201), t_mag=t(50.0, 501), t_tas=t(10.0, 101),
+                          field_ned=np.array([0.2, 0.01, 0.45]),
+                          info={"params": {"EKF2_BARO_NOISE": 2.0, "EKF2_HEAD_NOISE": 0.2, "EKF2_EAS_NOISE": 1.0,
+                                           "EKF2_GPS_P_NOISE": 0.4, "EKF2_GPS_V_NOISE": 0.2,
+                                           "EKF2_MAG_NOISE": 0.04}})
+    cfg = replay.config_like_ekf2(data)
+    assert cfg.baro.rate_hz == pytest.approx(20.0) and cfg.baro.noise_sigma == 2.0
+    assert cfg.mag.fusion == "heading" and cfg.mag.rate_hz == pytest.approx(50.0)
+    assert cfg.mag.heading_sigma_deg == pytest.approx(np.degrees(0.2))
+    assert cfg.mag.field_ned == (0.2, 0.01, 0.45) and cfg.mag.noise == 0.04
+    assert cfg.pitot.rate_hz == pytest.approx(10.0) and cfg.pitot.noise == 1.0 and cfg.pitot.scale_sigma0 == 0.3
+    assert cfg.gnss_floor == pytest.approx((0.4, 0.6, 0.2))
+    assert cfg.sideslip_sigma_deg == 6.0 and cfg.sideslip_offset_sigma0_deg == 15.0
+    assert cfg.wind.rw == 0.1
+    cfg = replay.config_like_ekf2(data, tas_scale=False, sideslip_sigma_deg=None, mag="3d", gate_prob=None)
+    assert cfg.pitot.scale_sigma0 is None and cfg.sideslip_offset_sigma0_deg is None
+    assert cfg.mag.fusion == "3d" and cfg.gate_prob is None
+    cfg = replay.config_like_ekf2(data, air_data=False, mag=None)
+    assert cfg.baro is None and cfg.mag is None and cfg.pitot is None and cfg.wind is None
+
+
+# --- ULog reader on synthetic logs --------------------------------------------------
+#
+# The real sample log has no EKF2 origin, the old position format and a single
+# airspeed topic. These fake logs go through the other branches, with values
+# known by construction. pyulog is replaced by a stand-in object with the same
+# attributes, so these tests need neither pyulog nor pygeomag.
+
+def px4_reproject(north, east, lat0, lon0):
+    """Inverse of PX4's azimuthal equidistant projection (map_projection_reproject)."""
+    from navsim.ulog_reader import R_EARTH
+
+    la0, lo0 = np.radians(lat0), np.radians(lon0)
+    x, y = np.asarray(north) / R_EARTH, np.asarray(east) / R_EARTH
+    c = np.hypot(x, y)
+    sc = np.where(c > 0, np.sin(c) / np.where(c > 0, c, 1.0), 1.0)
+    lat = np.arcsin(np.cos(c) * np.sin(la0) + x * sc * np.cos(la0))
+    lon = lo0 + np.arctan2(y * sc, np.cos(la0) * np.cos(c) - x * sc * np.sin(la0))
+    return np.degrees(lat), np.degrees(lon)
+
+
+@pytest.mark.parametrize("lat0, lon0", [(63.4, 10.4), (-45.0, 170.0), (0.0, -179.9)])
+def test_geodetic_to_ned_inverts_the_px4_reprojection(lat0, lon0):
+    from navsim.ulog_reader import geodetic_to_ned
+
+    ne = np.array([[0.0, 0.0], [1000.0, -500.0], [-30000.0, 25000.0], [12.3, 45.6]])
+    lat, lon = px4_reproject(ne[:, 0], ne[:, 1], lat0, lon0)
+    out = geodetic_to_ned(lat, lon, [100.0, 90.0, 150.0, 101.0], lat0, lon0, 100.0)
+    np.testing.assert_allclose(out[:, :2], ne, atol=1e-6)
+    np.testing.assert_allclose(out[:, 2], [0.0, 10.0, -50.0, -1.0])
+
+
+class FakeULog:
+    def __init__(self, topics, params, start=1_000_000):
+        self.data_list = [type("D", (), {"name": n, "multi_id": 0, "data": d})() for n, d in topics.items()]
+        self.initial_parameters = params
+        self.start_timestamp = start
+        self.msg_info_dict = {"ver_hw": "FAKE", "unrelated": "x"}
+
+
+ORIGIN = (45.0, 5.0, 300.0)                 # the last EKF2 origin
+PARAMS = {"EKF2_GPS_DELAY": 110.0, "EKF2_BARO_DELAY": 20.0, "EKF2_MAG_DELAY": 5.0, "EKF2_ASP_DELAY": 100.0,
+          "EKF2_GYR_NOISE": 0.02, "OTHER": 1.0}
+UTC_2023_07_02 = 1688256000 * 1e6          # 2023-07-02 00:00 UTC, day 183
+
+
+def fake_topics(position_format="int", ekf2_origin=True, airspeed_counts=(60, 20)):
+    us = lambda s: (1_000_000 + np.asarray(s) * 1e6).astype(np.uint64)
+    n = 500                                  # IMU, 250 Hz
+    t = np.arange(n) * 0.004
+    dt_us = np.full(n, 4000)
+    dt_us[[10, 11]] = 0                      # dropped samples
+    dt_us[20] = 60000                        # a gap: dropped
+    sc = {"timestamp": us(t), "gyro_integral_dt": dt_us, "accelerometer_integral_dt": np.full(n, 4000)}
+    for i, (w, a) in enumerate(zip((0.01, 0.02, -0.03), (0.1, 0.2, -9.8), strict=True)):
+        sc[f"gyro_rad[{i}]"], sc[f"accelerometer_m_s2[{i}]"] = np.full(n, w), np.full(n, a)
+
+    tg = np.arange(10) * 0.2                 # GNSS, 5 Hz
+    ne = np.column_stack([100.0 * tg, -40.0 * tg])
+    lat, lon = px4_reproject(ne[:, 0], ne[:, 1], *ORIGIN[:2])
+    alt = ORIGIN[2] + 10.0 + tg
+    g = {"timestamp": us(tg), "timestamp_sample": np.zeros(10), "fix_type": np.array([2] + [3] * 9),
+         "vel_ned_valid": np.array([1, 1, 0, 1, 1, 1, 1, 1, 1, 1]), "vel_n_m_s": np.full(10, 100.0),
+         "vel_e_m_s": np.full(10, -40.0), "vel_d_m_s": np.full(10, -1.0), "eph": np.full(10, 1.5),
+         "epv": np.full(10, 2.5), "s_variance_m_s": np.full(10, 0.4),
+         "time_utc_usec": np.concatenate([[0.0], np.full(9, UTC_2023_07_02)])}
+    if position_format == "int":
+        g.update(lat=np.round(lat * 1e7), lon=np.round(lon * 1e7), alt=np.round(alt * 1e3))
+    else:
+        g.update(latitude_deg=lat, longitude_deg=lon, altitude_msl_m=alt)
+
+    tl = np.arange(20) * 0.1                 # EKF2 local position: origin moved once at t = 1 s
+    valid = np.array([0] * 3 + [1] * 17, dtype=bool) & ekf2_origin
+    lp = {"timestamp": us(tl), "xy_global": valid, "z_global": valid,
+          "ref_lat": np.where(tl < 1.0, 44.0, ORIGIN[0]), "ref_lon": np.where(tl < 1.0, 4.0, ORIGIN[1]),
+          "ref_alt": np.where(tl < 1.0, 0.0, ORIGIN[2])}
+    for i, c in enumerate("xyz"):
+        lp[c], lp["v" + c] = tl * (i + 1), np.full(20, float(i))
+    att = {"timestamp": us(tl)}
+    for i in range(4):
+        att[f"q[{i}]"] = np.full(20, (1.0, 0.0, 0.0, 0.0)[i])
+    wind = {"timestamp": us(tl), "windspeed_north": tl, "windspeed_east": -tl}
+
+    tb = np.arange(20) * 0.1
+    air = {"timestamp": us(tb), "timestamp_sample": us(tb) - 3000, "baro_alt_meter": ORIGIN[2] + 7.0 + tb}
+    mag = {"timestamp": us(tb), "timestamp_sample": us(tb)[::-1]}     # not increasing: timestamp used
+    for i in range(3):
+        mag[f"magnetometer_ga[{i}]"] = np.full(20, 0.1 * (i + 1))
+    topics = {"sensor_combined": sc, "vehicle_gps_position": g, "vehicle_local_position": lp,
+              "vehicle_attitude": att, "wind": wind, "vehicle_air_data": air, "vehicle_magnetometer": mag,
+              "vehicle_land_detected": {"timestamp": us([0.0, 0.5, 1.5, 1.9]), "landed": np.array([1, 0, 0, 1])}}
+    for name, count in zip(("airspeed_validated", "airspeed"), airspeed_counts, strict=True):
+        ta = np.arange(count) * 0.03
+        tas = np.full(count, 20.0 if name == "airspeed_validated" else 30.0)
+        tas[1] = np.nan
+        topics[name] = {"timestamp": us(ta), "true_airspeed_m_s": tas}
+    return topics, ne, alt
+
+
+def load_fake(monkeypatch, topics, params=PARAMS):
+    import sys
+    import types
+
+    from navsim import ulog_reader
+
+    monkeypatch.setitem(sys.modules, "pyulog", types.SimpleNamespace(ULog=lambda path: FakeULog(topics, params)))
+    calls = []
+    monkeypatch.setattr(ulog_reader, "wmm_field", lambda *a: calls.append(a) or np.array([0.2, 0.0, 0.4]))
+    return ulog_reader.load("fake_flight.ulg"), calls
+
+
+@pytest.mark.parametrize("position_format", ["int", "deg"])
+def test_ulog_reader_on_a_synthetic_log(monkeypatch, position_format):
+    topics, ne, alt = fake_topics(position_format)
+    d, calls = load_fake(monkeypatch, topics)
+    assert d.name == "fake_flight" and d.info["sys"] == {"ver_hw": "FAKE"}
+    assert d.info["params"] == {"EKF2_ASP_DELAY": 100.0, "EKF2_BARO_DELAY": 20.0, "EKF2_GPS_DELAY": 110.0,
+                                "EKF2_GYR_NOISE": 0.02, "EKF2_MAG_DELAY": 5.0}
+    # IMU: samples with a zero or too long interval dropped, rates turned into increments
+    assert len(d.t_imu) == 497
+    np.testing.assert_allclose(d.dt_imu, 0.004)
+    np.testing.assert_allclose(d.dtheta, np.tile([0.01, 0.02, -0.03], (497, 1)) * 0.004)
+    np.testing.assert_allclose(d.dvel, np.tile([0.1, 0.2, -9.8], (497, 1)) * 0.004)
+    assert d.info["imu_rate_hz"] == pytest.approx(250.0)
+    # EKF2 origin: the last one, and the EKF2 positions are kept
+    assert d.info["ekf2_origin"] is True and d.info["origin"] == ORIGIN
+    np.testing.assert_allclose(d.ref_p[:, 0], topics["vehicle_local_position"]["x"])
+    # GNSS: fixes without 3D fix or valid velocity dropped; timestamp_sample all
+    # zero -> timestamp; dated back by EKF2_GPS_DELAY; NED in the EKF2 frame
+    keep = [1, 3, 4, 5, 6, 7, 8, 9]
+    np.testing.assert_allclose(d.t_gnss, np.array(keep) * 0.2 - 0.110, atol=1e-9)
+    tol = 0.02 if position_format == "int" else 1e-6     # 1e-7 deg and mm quantisation
+    np.testing.assert_allclose(d.gnss_p[:, :2], ne[keep], atol=tol)
+    np.testing.assert_allclose(d.gnss_p[:, 2], -(alt[keep] - ORIGIN[2]), atol=1e-3)
+    np.testing.assert_allclose(d.gnss_v, np.tile([100.0, -40.0, -1.0], (8, 1)))
+    np.testing.assert_allclose(d.gnss_sigma, np.tile([1.5, 2.5, 0.4], (8, 1)))
+    # baro: timestamp_sample when it increases, delay, altitude above the origin
+    np.testing.assert_allclose(d.t_baro, np.arange(20) * 0.1 - 0.003 - 0.020, atol=1e-9)
+    np.testing.assert_allclose(d.baro_alt, 7.0 + np.arange(20) * 0.1)
+    # magnetometer: timestamp_sample not increasing -> timestamp
+    np.testing.assert_allclose(d.t_mag, np.arange(20) * 0.1 - 0.005, atol=1e-9)
+    np.testing.assert_allclose(d.mag, np.tile([0.1, 0.2, 0.3], (20, 1)))
+    # airspeed: the topic with more samples, NaN dropped
+    assert d.info["airspeed_topic"] == "airspeed_validated"
+    assert len(d.tas) == 59 and np.all(d.tas == 20.0)
+    np.testing.assert_allclose(d.t_tas[:2], [0.0 - 0.1, 0.06 - 0.1], atol=1e-9)
+    # wind of EKF2, interpolated at the reference times; flight interval
+    np.testing.assert_allclose(d.ref_wind, np.column_stack([d.t_ref, -d.t_ref]), atol=1e-12)
+    assert d.info["airborne"] == pytest.approx((0.5, 1.5))
+    # Earth field: WMM at the origin, on the UTC date of the flight
+    (lat0, lon0, alt0, year), = calls
+    assert (lat0, lon0, alt0) == ORIGIN
+    assert year == pytest.approx(2023 + 182 / 365.25)
+
+
+def test_ulog_reader_without_ekf2_origin_and_with_raw_airspeed(monkeypatch):
+    topics, ne, alt = fake_topics(ekf2_origin=False, airspeed_counts=(10, 40))
+    del topics["wind"]
+    d, calls = load_fake(monkeypatch, topics, params={})
+    assert d.info["ekf2_origin"] is False
+    assert np.all(np.isnan(d.ref_p))
+    # origin: the first fix with a 3D fix and a valid velocity (index 1)
+    np.testing.assert_allclose(d.info["origin"][:2], [topics["vehicle_gps_position"]["lat"][1] * 1e-7,
+                                                       topics["vehicle_gps_position"]["lon"][1] * 1e-7])
+    np.testing.assert_allclose(d.gnss_p[0], 0.0, atol=1e-9)
+    np.testing.assert_allclose(d.gnss_p[1, :2], ne[3] - ne[1], atol=0.03)
+    # no delay parameters: times as logged
+    np.testing.assert_allclose(d.t_gnss[0], 0.2, atol=1e-9)
+    assert d.info["airspeed_topic"] == "airspeed" and np.all(d.tas == 30.0)
+    assert d.ref_wind is None

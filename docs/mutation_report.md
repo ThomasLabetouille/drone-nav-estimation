@@ -2,7 +2,7 @@
 
 Généré par `scripts/mutation_check.py`. Chaque ligne est un bug plausible introduit dans une copie du dépôt, puis la suite de tests est lancée sur cette copie (sans le test de provenance, qui détecterait trivialement toute modification).
 
-**54 mutations détectées sur 55.**
+**63 mutations détectées sur 63.**
 
 | | Fichier | Bug simulé | Résultat | Détecté par |
 |---|---|---|---|---|
@@ -11,7 +11,7 @@ Généré par `scripts/mutation_check.py`. Chaque ligne est un bug plausible int
 | M03 | `eskf.py` | bruit de processus gyro en dt² au lieu de dt | détecté | `tests/test_oracles.py::test_propagated_covariance_matches_monte_carlo[noise_only]` |
 | M04 | `eskf.py` | correction d'attitude injectée dans le repère avion au lieu de NED | détecté | `tests/test_step3.py::test_filter_is_consistent_on_a_short_flight` |
 | M05 | `eskf.py` | signe de la jacobienne de réinitialisation (convention d'erreur locale au lieu de globale) : bug réel du projet jusqu'à l'étape 5 | détecté | `tests/test_oracles.py::test_reset_jacobian_matches_rotation_composition[0]` |
-| M06 | `eskf.py` | forme de Joseph remplacée par la forme courte (I - KH) P | survit (attendu) | `` |
+| M06 | `eskf.py` | forme de Joseph remplacée par la forme courte (I - KH) P : équivalente avec le gain optimal, fausse avec les états consider de l'étape 5 | détecté | `tests/test_step6.py::test_false_alarm_rate_of_each_sensor_without_faults` |
 | M07 | `eskf.py` | biais GNSS oublié dans le modèle de mesure | détecté | `tests/test_step4.py::test_gnss_bias_states_follow_gauss_markov` |
 | M08 | `strapdown.py` | signe de la correction de coning | détecté | `tests/test_step2.py::test_perfect_imu_reproduces_mission` |
 | M09 | `strapdown.py` | gravité de signe inversé en NED | détecté | `tests/test_step2.py::test_perfect_imu_reproduces_mission` |
@@ -61,12 +61,16 @@ Généré par `scripts/mutation_check.py`. Chaque ligne est un bug plausible int
 | M53 | `eskf.cpp` | C++ : signe de la corrélation vent / cap à l'initialisation du vent | détecté | `tests/test_step8.py::test_same_states_on_a_misaligned_flight_with_an_outage` |
 | M54 | `eskf.cpp` | C++ : couplage cap / inclinaison oublié dans la mesure de cap | détecté | `tests/test_step8.py::test_same_states_on_a_misaligned_flight_with_an_outage` |
 | M55 | `replay_main.cpp` | C++ : protection contre le blocage du Pitot oubliée dans la boucle | détecté | `tests/test_step8.py::test_same_gate_decisions_and_resets` |
-
-## Mutations qui survivent, et pourquoi
-
-- **M06** (forme de Joseph remplacée par la forme courte (I - KH) P) : mutant équivalent : avec le gain optimal, les deux formes sont égales en arithmétique exacte. La forme de Joseph n'apporte que de la robustesse numérique.
+| M56 | `eskf.py` | réinitialisation sur le GNSS qui oublie le biais GNSS dans la covariance de la position | détecté | `tests/test_step6.py::test_reset_to_gnss_gives_the_covariance_of_the_fix[True]` |
+| M57 | `ulog_reader.py` | première origine de l'EKF2 au lieu de la dernière | détecté | `tests/test_step7.py::test_ulog_reader_on_a_synthetic_log[int]` |
+| M58 | `ulog_reader.py` | topic de vitesse air le moins fourni | détecté | `tests/test_step7.py::test_ulog_reader_on_a_synthetic_log[int]` |
+| M59 | `ulog_reader.py` | timestamp_sample ignoré (instant de publication au lieu de l'instant de mesure) | détecté | `tests/test_step7.py::test_ulog_reader_on_a_synthetic_log[int]` |
+| M60 | `replay.py` | erreur de fin de coupure sans propager l'estimée jusqu'au point GNSS | détecté | `tests/test_step7.py::test_outage_errors_on_a_known_log` |
+| M61 | `cpp_bridge.py` | C++ : mesure datée exactement d'un échantillon IMU traitée un échantillon trop tard | détecté | `tests/test_step8.py::test_same_states_on_a_misaligned_flight_with_an_outage` |
+| M62 | `replay_main.cpp` | C++ : vitesse air minimale ignorée | détecté | `tests/test_step8.py::test_same_states_on_a_time_window_with_slow_airspeed` |
+| M63 | `replay.py` | vitesse air minimale ignorée dans le rejeu | détecté | `tests/test_step7.py::test_airspeed_below_the_minimum_is_not_fused` |
 
 ## Provenance
 
-- Empreinte des sources et des tests : `5085d5dafe5dac08` (36 fichiers)
+- Empreinte des sources et des tests : `f7ed3e69b2f68df3` (36 fichiers)
 - Toute modification d'un module ou d'un test rend ce rapport périmé (`scripts/check_provenance.py`) : relancer le script.

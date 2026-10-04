@@ -1,17 +1,17 @@
 {
   "script": "scripts/mutation_check.py",
-  "code_fingerprint": "5085d5dafe5dac08604bc6ad257d37087a85b084cf59a23c437e4862fa7eaeeb",
+  "code_fingerprint": "f7ed3e69b2f68df380d217549454e4ae167f0864f9d4ef9cfa5875b279ad53b5",
   "files": {
     "cpp/include/navcpp/eskf.hpp": "21f0f312b2670fe71966de7ea420df14b3020ed7f0c82627036f5095de0f280c",
     "cpp/include/navcpp/rotations.hpp": "b68a9e39b9892ad90f01bcfbaf850a9cb24a734a58abadea5f048af28e980acd",
     "cpp/src/eskf.cpp": "a3f5902255b5be414394c605021f321ebda8e5082bc3ee877ee31856c67e670c",
     "cpp/src/replay_main.cpp": "1adb6630d3e4d86ea01307204176ddb01c2ccc38c6dea72e67b21767fcc764aa",
     "cpp/tests/test_eskf.cpp": "9b60e3ddbd32d5748ac5d161177217c4996087ab83b41aef500ecc19510672de",
-    "scripts/mutation_check.py": "1ccc44df0ade8f18b416216adb69c393a3657bfdfa4a7071b94b58e4e5187a99",
+    "scripts/mutation_check.py": "93f53a639c4efe65aa180a4b5ff4eb8950c45277c92bbfd203f84bd35d9a4e4f",
     "src/navsim/__init__.py": "1ef54889932f5a1d5c3eae5402e991d560dd0dcf0956375745a5dec6e3ce6f68",
     "src/navsim/aiding.py": "c9aac89b20a1b4547152ccde03827db7d5d7dc0b0beb2d9504dc541423939406",
     "src/navsim/cpp_bridge.py": "8165fb7aaa0dad20a7c9e0c5be5ae5054e1147077e57a9ebfedac44acee19220",
-    "src/navsim/eskf.py": "4b18fd5144c2291db3d42579c8fa5e6c3f3d6a3fdaa9c6435df26faa0d0eb2a4",
+    "src/navsim/eskf.py": "b2cd429c78d54a7e626bf7122367daa813ded51fd1abb7a5eaacb3fd2673e3f4",
     "src/navsim/faults.py": "57e69ea3b3950666e9c092cbf6a857db38711115f812960635ee8784a3850b29",
     "src/navsim/fusion.py": "5417df8942d93a5b6010c103ce69472f98d6c475d5ae09ea8c39e65cc30a2919",
     "src/navsim/gnss.py": "a9b9238e280364c3fe36d5ed0ea579ce29e32fd6059d911c4a4479f8e253a50b",
@@ -35,9 +35,9 @@
     "tests/test_step3.py": "4d84aec5d68d6f8dab78856188827be2b60713c037cf880d9119c6b896c86c05",
     "tests/test_step4.py": "31c000128c1dc858cb5eb15c8c970f96b00ca483c2723308b32f450546490997",
     "tests/test_step5.py": "44fe269b5c71e5a3282bdf2c260a77ca3212b34f08732cd0aa0f08282166fc74",
-    "tests/test_step6.py": "49d0132b3af8f633f37d0e66f0b1c2cb3089febffcaf511b0fb76633a1a0a386",
-    "tests/test_step7.py": "3ccba766039a07b261f2599da0f2e975985c5cdcbafa7b8b38e8760a773fc35e",
-    "tests/test_step8.py": "4ea99376342f59698af85a9c42cb46c13c634ef631227bceb8f5f98cfbdc7d6d"
+    "tests/test_step6.py": "48e3a2b1e57ab2d5f6522f046ec3472b517cab3b8acd30f96fd7272cb55cdf93",
+    "tests/test_step7.py": "60182d2427d70bb131af28e0047d1e91de74ba4bbf1eba341b17c06bfffb00fc",
+    "tests/test_step8.py": "f2ad5914f1690867dcb1b62066ccbeacc1402461bca2e4c180cf298fae11ecaa"
   },
   "results": [
     {
@@ -50,31 +50,31 @@
       "id": "M02",
       "status": "killed",
       "by": "tests/test_step3.py::test_transition_matrix_matches_nonlinear_propagation[30.0]",
-      "seconds": 3.4
+      "seconds": 3.5
     },
     {
       "id": "M03",
       "status": "killed",
       "by": "tests/test_oracles.py::test_propagated_covariance_matches_monte_carlo[noise_only]",
-      "seconds": 66.8
+      "seconds": 69.9
     },
     {
       "id": "M04",
       "status": "killed",
       "by": "tests/test_step3.py::test_filter_is_consistent_on_a_short_flight",
-      "seconds": 22.0
+      "seconds": 20.6
     },
     {
       "id": "M05",
       "status": "killed",
       "by": "tests/test_oracles.py::test_reset_jacobian_matches_rotation_composition[0]",
-      "seconds": 78.6
+      "seconds": 72.4
     },
     {
       "id": "M06",
-      "status": "survived",
-      "by": "",
-      "seconds": 791.7
+      "status": "killed",
+      "by": "tests/test_step6.py::test_false_alarm_rate_of_each_sensor_without_faults",
+      "seconds": 51.4
     },
     {
       "id": "M07",
@@ -86,55 +86,55 @@
       "id": "M08",
       "status": "killed",
       "by": "tests/test_step2.py::test_perfect_imu_reproduces_mission",
-      "seconds": 19.9
+      "seconds": 19.8
     },
     {
       "id": "M09",
       "status": "killed",
       "by": "tests/test_step2.py::test_perfect_imu_reproduces_mission",
-      "seconds": 20.0
+      "seconds": 19.7
     },
     {
       "id": "M10",
       "status": "killed",
       "by": "tests/test_step2.py::test_perfect_imu_reproduces_mission",
-      "seconds": 27.8
+      "seconds": 22.2
     },
     {
       "id": "M11",
       "status": "killed",
       "by": "tests/test_step2.py::test_dead_reckoning_matches_error_budget",
-      "seconds": 133.3
+      "seconds": 150.5
     },
     {
       "id": "M12",
       "status": "killed",
       "by": "tests/test_oracles.py::TestRotationsAgainstScipy::test_product_is_composition",
-      "seconds": 1.4
+      "seconds": 1.9
     },
     {
       "id": "M13",
       "status": "killed",
       "by": "tests/test_oracles.py::TestRotationsAgainstScipy::test_euler_to_quaternion",
-      "seconds": 1.5
+      "seconds": 1.9
     },
     {
       "id": "M14",
       "status": "killed",
       "by": "tests/test_step2.py::test_specific_force_in_steady_turn",
-      "seconds": 3.3
+      "seconds": 4.6
     },
     {
       "id": "M15",
       "status": "killed",
       "by": "tests/test_oracles.py::test_trajectory_matches_ode_integration",
-      "seconds": 31.8
+      "seconds": 36.9
     },
     {
       "id": "M16",
       "status": "killed",
       "by": "tests/test_oracles.py::test_propagated_covariance_matches_monte_carlo[noise_only]",
-      "seconds": 56.4
+      "seconds": 57.9
     },
     {
       "id": "M17",
@@ -146,7 +146,7 @@
       "id": "M18",
       "status": "killed",
       "by": "tests/test_step4.py::test_correlated_error_statistics",
-      "seconds": 1.4
+      "seconds": 1.5
     },
     {
       "id": "M19",
@@ -164,61 +164,61 @@
       "id": "M21",
       "status": "killed",
       "by": "tests/test_step1.py::test_filter_is_consistent_when_model_matches",
-      "seconds": 10.9
+      "seconds": 11.0
     },
     {
       "id": "M22",
       "status": "killed",
       "by": "tests/test_oracles.py::test_latency_geometry[compensate-0.0]",
-      "seconds": 64.4
+      "seconds": 66.1
     },
     {
       "id": "M23",
       "status": "killed",
       "by": "tests/test_step4.py::test_initial_covariance_correlates_position_and_gnss_bias",
-      "seconds": 1.4
+      "seconds": 2.2
     },
     {
       "id": "M24",
       "status": "killed",
       "by": "tests/test_step4.py::test_delayed_mode_without_latency_equals_plain_filter",
-      "seconds": 14.8
+      "seconds": 21.6
     },
     {
       "id": "M25",
       "status": "killed",
       "by": "tests/test_provenance.py::test_fingerprint_ignores_line_endings",
-      "seconds": 0.5
+      "seconds": 0.7
     },
     {
       "id": "M26",
       "status": "killed",
       "by": "tests/test_step5.py::test_measurement_jacobian_matches_numerical_derivative[0-mag]",
-      "seconds": 5.1
+      "seconds": 6.0
     },
     {
       "id": "M27",
       "status": "killed",
       "by": "tests/test_step5.py::test_measurement_jacobian_matches_numerical_derivative[0-airspeed]",
-      "seconds": 5.0
+      "seconds": 5.4
     },
     {
       "id": "M28",
       "status": "killed",
       "by": "tests/test_step5.py::test_measurement_jacobian_matches_numerical_derivative[0-sideslip]",
-      "seconds": 5.1
+      "seconds": 5.4
     },
     {
       "id": "M29",
       "status": "killed",
       "by": "tests/test_step5.py::test_measurement_jacobian_matches_numerical_derivative[0-baro]",
-      "seconds": 5.1
+      "seconds": 5.2
     },
     {
       "id": "M30",
       "status": "killed",
       "by": "tests/test_step5.py::test_gated_mag_bias_keeps_the_heading_consistent",
-      "seconds": 28.2
+      "seconds": 29.2
     },
     {
       "id": "M31",
@@ -230,19 +230,19 @@
       "id": "M32",
       "status": "killed",
       "by": "tests/test_step5.py::test_magnetometer_stream_statistics",
-      "seconds": 5.0
+      "seconds": 5.1
     },
     {
       "id": "M33",
       "status": "killed",
       "by": "tests/test_step5.py::test_magnetometer_heading_recovers_the_true_heading",
-      "seconds": 4.9
+      "seconds": 4.8
     },
     {
       "id": "M34",
       "status": "killed",
       "by": "tests/test_step5.py::test_initial_wind_covariance_matches_monte_carlo",
-      "seconds": 96.3
+      "seconds": 97.1
     },
     {
       "id": "M35",
@@ -260,31 +260,31 @@
       "id": "M37",
       "status": "killed",
       "by": "tests/test_step6.py::test_gnss_false_alarm_rate_in_flight",
-      "seconds": 50.4
+      "seconds": 52.6
     },
     {
       "id": "M38",
       "status": "killed",
       "by": "tests/test_step6.py::test_wind_lockout_and_its_protection",
-      "seconds": 108.0
+      "seconds": 99.4
     },
     {
       "id": "M39",
       "status": "killed",
       "by": "tests/test_step6.py::test_gnss_lockout_and_its_protection",
-      "seconds": 214.5
+      "seconds": 211.4
     },
     {
       "id": "M40",
       "status": "killed",
       "by": "tests/test_step6.py::test_outage_is_applied_and_gnss_is_accepted_again",
-      "seconds": 51.0
+      "seconds": 54.1
     },
     {
       "id": "M41",
       "status": "killed",
       "by": "tests/test_step6.py::test_strong_magnetic_disturbance_is_rejected",
-      "seconds": 161.4
+      "seconds": 161.8
     },
     {
       "id": "M42",
@@ -314,61 +314,109 @@
       "id": "M46",
       "status": "killed",
       "by": "tests/test_step7.py::test_ulog_reader_on_a_real_log",
-      "seconds": 111.4
+      "seconds": 112.4
     },
     {
       "id": "M47",
       "status": "killed",
       "by": "tests/test_step7.py::test_receiver_accuracy_becomes_per_axis_sigmas",
-      "seconds": 1.4
+      "seconds": 1.7
     },
     {
       "id": "M48",
       "status": "killed",
       "by": "tests/test_step7.py::test_geodetic_to_ned_against_ecef",
-      "seconds": 124.9
+      "seconds": 135.4
     },
     {
       "id": "M49",
       "status": "killed",
       "by": "tests/test_step8.py::test_same_states_on_a_misaligned_flight_with_an_outage",
-      "seconds": 55.3
+      "seconds": 45.4
     },
     {
       "id": "M50",
       "status": "killed",
       "by": "tests/test_step8.py::test_same_states_on_a_misaligned_flight_with_an_outage",
-      "seconds": 55.6
+      "seconds": 49.9
     },
     {
       "id": "M51",
       "status": "killed",
       "by": "tests/test_step8.py::test_same_states_on_a_misaligned_flight_with_an_outage",
-      "seconds": 55.6
+      "seconds": 66.5
     },
     {
       "id": "M52",
       "status": "killed",
       "by": "tests/test_step8.py::test_cpp_unit_tests",
-      "seconds": 24.9
+      "seconds": 29.0
     },
     {
       "id": "M53",
       "status": "killed",
       "by": "tests/test_step8.py::test_same_states_on_a_misaligned_flight_with_an_outage",
-      "seconds": 55.6
+      "seconds": 55.0
     },
     {
       "id": "M54",
       "status": "killed",
       "by": "tests/test_step8.py::test_same_states_on_a_misaligned_flight_with_an_outage",
-      "seconds": 56.5
+      "seconds": 55.8
     },
     {
       "id": "M55",
       "status": "killed",
       "by": "tests/test_step8.py::test_same_gate_decisions_and_resets",
-      "seconds": 59.8
+      "seconds": 67.1
+    },
+    {
+      "id": "M56",
+      "status": "killed",
+      "by": "tests/test_step6.py::test_reset_to_gnss_gives_the_covariance_of_the_fix[True]",
+      "seconds": 2.9
+    },
+    {
+      "id": "M57",
+      "status": "killed",
+      "by": "tests/test_step7.py::test_ulog_reader_on_a_synthetic_log[int]",
+      "seconds": 161.2
+    },
+    {
+      "id": "M58",
+      "status": "killed",
+      "by": "tests/test_step7.py::test_ulog_reader_on_a_synthetic_log[int]",
+      "seconds": 160.1
+    },
+    {
+      "id": "M59",
+      "status": "killed",
+      "by": "tests/test_step7.py::test_ulog_reader_on_a_synthetic_log[int]",
+      "seconds": 158.4
+    },
+    {
+      "id": "M60",
+      "status": "killed",
+      "by": "tests/test_step7.py::test_outage_errors_on_a_known_log",
+      "seconds": 128.8
+    },
+    {
+      "id": "M61",
+      "status": "killed",
+      "by": "tests/test_step8.py::test_same_states_on_a_misaligned_flight_with_an_outage",
+      "seconds": 56.3
+    },
+    {
+      "id": "M62",
+      "status": "killed",
+      "by": "tests/test_step8.py::test_same_states_on_a_time_window_with_slow_airspeed",
+      "seconds": 133.3
+    },
+    {
+      "id": "M63",
+      "status": "killed",
+      "by": "tests/test_step7.py::test_airspeed_below_the_minimum_is_not_fused",
+      "seconds": 138.0
     }
   ]
 }

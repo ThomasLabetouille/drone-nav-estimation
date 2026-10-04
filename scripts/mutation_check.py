@@ -70,10 +70,9 @@ MUTATIONS = (
              "bug réel du projet jusqu'à l'étape 5", ("tests/test_oracles.py", "tests/test_step5.py")),
     Mutation("M06", "src/navsim/eskf.py",
              "P = IKH @ self.P @ np.swapaxes(IKH, 1, 2) + K @ R @ np.swapaxes(K, 1, 2)",
-             "P = IKH @ self.P", "forme de Joseph remplacée par la forme courte (I - KH) P",
-             ("tests/test_oracles.py", "tests/test_properties.py"), expected="survives",
-             note="mutant équivalent : avec le gain optimal, les deux formes sont égales en arithmétique "
-                  "exacte. La forme de Joseph n'apporte que de la robustesse numérique"),
+             "P = IKH @ self.P", "forme de Joseph remplacée par la forme courte (I - KH) P : équivalente avec le "
+             "gain optimal, fausse avec les états consider de l'étape 5",
+             ("tests/test_step6.py", "tests/test_oracles.py")),
     Mutation("M07", "src/navsim/eskf.py", "self.H_gnss[0:3, s] = np.eye(3)", "self.H_gnss[0:3, s] = 0.0 * np.eye(3)",
              "biais GNSS oublié dans le modèle de mesure", ("tests/test_step4.py",)),
     # --- strapdown -----------------------------------------------------------
@@ -217,6 +216,31 @@ MUTATIONS = (
     Mutation("M55", "cpp/src/replay_main.cpp", "if (c.pitot_reset_after >= 0.0 && t - pitot_rejected_since",
              "if (false && t - pitot_rejected_since",
              "C++ : protection contre le blocage du Pitot oubliée dans la boucle", ("tests/test_step8.py",)),
+    # --- tests added after step 8 ------------------------------------------------
+    Mutation("M56", "src/navsim/eskf.py", 'J[0:3, self.blocks["gnss_bias"]] = -np.eye(3)',
+             'J[0:3, self.blocks["gnss_bias"]] = 0.0 * np.eye(3)',
+             "réinitialisation sur le GNSS qui oublie le biais GNSS dans la covariance de la position",
+             ("tests/test_step6.py",)),
+    Mutation("M57", "src/navsim/ulog_reader.py", "i_ref = int(np.flatnonzero(valid)[-1])",
+             "i_ref = int(np.flatnonzero(valid)[0])", "première origine de l'EKF2 au lieu de la dernière",
+             ("tests/test_step7.py",)),
+    Mutation("M58", "src/navsim/ulog_reader.py", "airspeed_topic, asp = max(candidates,",
+             "airspeed_topic, asp = min(candidates,", "topic de vitesse air le moins fourni",
+             ("tests/test_step7.py",)),
+    Mutation("M59", "src/navsim/ulog_reader.py", "> 0):\n        return ts", "> 0):\n        return d[\"timestamp\"]",
+             "timestamp_sample ignoré (instant de publication au lieu de l'instant de mesure)",
+             ("tests/test_step7.py",)),
+    Mutation("M60", "src/navsim/replay.py", "- log.gnss[k, :2] + log.v[j, :2] * (log.t[k] - log.t[j])",
+             "- log.gnss[k, :2]", "erreur de fin de coupure sans propager l'estimée jusqu'au point GNSS",
+             ("tests/test_step7.py",)),
+    Mutation("M61", "src/navsim/cpp_bridge.py", 'np.searchsorted(data.t_imu, t_e, side="left")',
+             'np.searchsorted(data.t_imu, t_e, side="right")',
+             "C++ : mesure datée exactement d'un échantillon IMU traitée un échantillon trop tard",
+             ("tests/test_step8.py",)),
+    Mutation("M62", "cpp/src/replay_main.cpp", "if (tas < c.min_airspeed) break;", "if (tas < 0.0) break;",
+             "C++ : vitesse air minimale ignorée", ("tests/test_step8.py",)),
+    Mutation("M63", "src/navsim/replay.py", "if tas[0] < cfg.min_airspeed:", "if tas[0] < 0.0:",
+             "vitesse air minimale ignorée dans le rejeu", ("tests/test_step7.py",)),
 )
 
 

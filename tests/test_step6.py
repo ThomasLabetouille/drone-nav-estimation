@@ -90,6 +90,81 @@ def test_random_walk_can_change_per_run():
     np.testing.assert_allclose(q[:, 1], q[:, 0])
 
 
+def filter_with_correlated_states(model_gnss_bias, seed=0):
+    """A filter whose P is a dense random covariance: every state correlated
+    with every other one, as after a long flight."""
+    ekf = ErrorStateEKF(imu.IMUConfig(), gnss.REALISTIC, 0.005, 1, model_gnss_bias=model_gnss_bias)
+    rng = np.random.default_rng(seed)
+    A = rng.normal(0.0, 0.5, (ekf.n, ekf.n))
+    ekf.initialise(rng.normal(0, 1, (1, 3)), rng.normal(0, 1, (1, 3)), np.array([[1.0, 0, 0, 0]]), (A @ A.T)[None])
+    if model_gnss_bias:
+        ekf.extra[0, ekf.blocks["gnss_bias"].start - 15:ekf.blocks["gnss_bias"].stop - 15] = [0.5, -0.3, 1.2]
+    return ekf, rng
+
+
+@pytest.mark.parametrize("model_gnss_bias", [False, True])
+def test_reset_to_gnss_gives_the_covariance_of_the_fix(model_gnss_bias):
+    """Monte Carlo oracle, independent of the algebra in reset_to_gnss: draw
+    errors from P and fix noises from R, apply the reset to each draw
+    (p = z_p - b, v = z_v, the rest unchanged), and compare the empirical
+    covariance of the new errors with the P the filter announces. Until this
+    test was written, the position lost its correlations with the states the
+    GNSS bias is correlated with, and P could have negative eigenvalues."""
+    ekf, rng = filter_with_correlated_states(model_gnss_bias)
+    P_old = ekf.P[0].copy()
+    z = np.array([[10.0, -20.0, 5.0, 1.0, 2.0, -0.5]])
+    ekf.reset_to_gnss(np.array([True]), z)
+    np.testing.assert_allclose(ekf.p[0], z[0, :3] - ekf.bgnss[0])
+    np.testing.assert_allclose(ekf.v[0], z[0, 3:])
+
+    N = 400_000
+    e = rng.multivariate_normal(np.zeros(ekf.n), P_old, N)
+    noise = rng.multivariate_normal(np.zeros(6), ekf.R_gnss, N)
+    new = e.copy()
+    new[:, 0:3] = noise[:, 0:3] - (e[:, ekf.blocks["gnss_bias"]] if model_gnss_bias else 0.0)
+    new[:, 3:6] = noise[:, 3:6]
+    C = np.cov(new.T)
+    scale = np.sqrt(np.outer(np.diag(C), np.diag(C)))
+    assert np.abs(ekf.P[0] - C).max() / scale.max() < 0.01
+    assert np.abs((ekf.P[0] - C) / scale).max() < 0.02     # correlations within 0.02
+    assert np.linalg.eigvalsh(ekf.P[0]).min() > 0.0
+    np.testing.assert_array_equal(ekf.P[0], ekf.P[0].T)
+    # the states other than position and velocity are untouched
+    np.testing.assert_array_equal(ekf.P[0][6:, 6:], P_old[6:, 6:])
+
+
+def test_reset_to_gnss_only_touches_the_runs_in_the_mask():
+    ekf = filter_at_rest(3)
+    ekf.P[:] = ekf.P[0] + 0.1                    # correlated
+    p, v, P = ekf.p.copy(), ekf.v.copy(), ekf.P.copy()
+    z = np.zeros((3, 6))
+    ekf.reset_to_gnss(np.array([False, True, False]), z)
+    for i in (0, 2):
+        np.testing.assert_array_equal(ekf.p[i], p[i])
+        np.testing.assert_array_equal(ekf.v[i], v[i])
+        np.testing.assert_array_equal(ekf.P[i], P[i])
+    assert not np.array_equal(ekf.P[1], P[1])
+    ekf.reset_to_gnss(np.array([False, False, False]), z)    # nothing to do
+
+
+def test_false_alarm_rate_of_each_sensor_without_faults(outage):
+    """Before the outage nothing is wrong, so each gate at 99.9 % must reject
+    about 0.1 % of its measurements: magnetometer, baro and Pitot alike. The
+    sideslip is a pseudo-measurement (beta = 0) with a deliberately large
+    sigma (6 deg against an actual sideslip of a fraction of a degree): its
+    gate must never trip without a fault. The magnetometer rate also checks
+    the Joseph form: with the bias states frozen (consider states), the gain
+    is not optimal, and the short form (I - KH) P gives no rejection at all."""
+    lg = outage["best"]
+    for name in ("mag", "baro", "pitot"):
+        t = lg.aux_nis[name][0]
+        r = lg.aux_rejected[name][:, (t > 5.0) & (t < 40.0)]
+        assert r.size > 3000, name
+        assert binomtest(int(r.sum()), r.size, 0.001).pvalue > 0.001, (name, r.mean())
+    t = lg.aux_nis["sideslip"][0]
+    assert lg.aux_rejected["sideslip"][:, (t > 5.0) & (t < 40.0)].sum() == 0
+
+
 # --- system level -----------------------------------------------------------------
 
 OUTAGE_PLAN = dataclasses.replace(trajectory3d.MISSION_WIND, duration=110.0)

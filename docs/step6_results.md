@@ -27,7 +27,7 @@ Généré par `scripts/step6_degraded.py`. Mission de l'étape 5 (vent de 5 m/s)
 | J2 : avec test, vent de l'étape 5 | 7.7 | 1.2 | 3.8 | 99.9 % | 1.6 % | 1 |
 | J3 : avec test, vent quasi figé sans GNSS, sans réinitialisation | 43.5 | 40.1 | 413.8 | 100.0 % | 100.0 % | 0 |
 | J4 : comme J3, réinitialisation sur le GNSS après 45 s | 43.5 | 40.1 | 84.5 | 100.0 % | 11.6 % | 40 |
-| J5 : comme J2, réinitialisation après 10 s | 15.3 | 49.3 | 15.2 | 33.4 % | 7.8 % | 80 |
+| J5 : comme J2, réinitialisation après 10 s | 15.3 | 49.1 | 15.2 | 33.4 % | 7.8 % | 80 |
 
 ## Perturbation magnétique de 170 à 230 s
 
@@ -41,11 +41,11 @@ Vol animé (`docs/img/step6_outage.mp4`) : run 32, celui dont l'erreur de O3 à 
 
 ## Provenance
 
-- Empreinte du code : `1d3525acff1a390c` (14 fichiers, calculée par le script au moment de l'écriture)
+- Empreinte du code : `26de7852b0075eb4` (14 fichiers, calculée par le script au moment de l'écriture)
 - Commit git : non disponible
 - Graine : 2026, 40 runs
 - Paramètres : `cfea53456d61250d` (détail dans le fichier JSON voisin)
 - Python 3.13.15, numpy 2.5.3, scipy 1.18.1
-- Généré le 2026-10-03T09:20:25Z
+- Généré le 2026-10-04T15:57:02Z
 
 `python scripts/check_provenance.py` compare cette empreinte au code actuel.

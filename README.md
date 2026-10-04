@@ -21,7 +21,7 @@ Le projet avance par étapes. Chacune ajoute des capteurs ou des états au filtr
 
 ```bash
 pip install -e ".[dev]"                # dont pyulog et pygeomag pour l'étape 7
-python -m pytest                       # environ onze minutes
+python -m pytest                       # environ treize minutes
 python scripts/step1_altitude.py       # étape 1, ~45 s
 python scripts/step2_strapdown.py      # étape 2, ~50 s
 python scripts/step3_eskf.py           # étape 3, ~2 min 30
@@ -361,7 +361,7 @@ Toutes les configurations utilisent le filtre de l'étape 4 (GNSS réaliste, bia
 
 En ligne droite, un biais constant et une erreur de cap produisent la même signature sur le champ mesuré : la combinaison n'est pas observable. Le filtre la croit pourtant observable, parce qu'il linéarise autour de sa propre estimation, qui bouge un peu à chaque échantillon. J'ai vérifié qu'une propagation de covariance autour de l'état vrai, elle, ne gagne rien. C'est un défaut connu de l'EKF, et c'est là qu'il apparaît sur un vrai drone qui décolle et part en ligne droite.
 
-La correction : le biais n'est appris que lorsque l'avion tourne à plus de 5 °/s. Le reste du temps, ses trois états deviennent des états « consider » (Schmidt-Kalman) : leur incertitude entre dans l'innovation, mais le filtre ne les corrige pas. Les deux NEES reviennent à 1. Un test garde les deux comportements, et une mutation qui inverse la condition est détectée.
+La correction : le biais n'est appris que lorsque l'avion tourne à plus de 5 °/s. Le reste du temps, ses trois états deviennent des états « consider » (Schmidt-Kalman) : leur incertitude entre dans l'innovation, mais le filtre ne les corrige pas. Les deux NEES reviennent à 1. Le gain n'est alors plus le gain optimal, et la mise à jour doit rester en forme de Joseph : la forme courte `(I − KH)P` donnerait une covariance fausse (voir [`docs/verification.md`](docs/verification.md#m06--le-mutant-que-je-croyais-équivalent)). Un test garde les deux comportements, et une mutation qui inverse la condition est détectée.
 
 C'est aussi ce cas qui a fait apparaître le bug de signe de la jacobienne de réinitialisation, présent depuis l'étape 3. Avant sa correction, le NEES d'attitude de E2b montait à 2,9 au lieu de 1,4 : l'erreur de signe amplifiait la fausse observabilité. L'histoire est dans [`docs/verification.md`](docs/verification.md#m05--la-mutation-qui-avait-raison).
 
@@ -444,7 +444,7 @@ O4 va plus loin. Sans GNSS, le vent n'est plus observable, et sa marche aléatoi
 | J2 : avec test, vent de l'étape 5 | 7,7 m | 1,2 | 3,8 m | 99,9 % |
 | J3 : avec test, vent quasi figé sans GNSS, sans réinitialisation | 43,5 m | 40,1 | 413,8 m | 100,0 % |
 | J4 : comme J3, réinitialisation sur le GNSS après 45 s | 43,5 m | 40,1 | 84,5 m | 100,0 % |
-| J5 : comme J2, réinitialisation après 10 s | 15,3 m | 49,3 | 15,2 m | 33,4 % |
+| J5 : comme J2, réinitialisation après 10 s | 15,3 m | 49,1 | 15,2 m | 33,4 % |
 
 ![Test d'innovation](docs/img/step6_gating.png)
 
@@ -490,6 +490,7 @@ Le code est dans `src/navsim/faults.py` (pannes), `src/navsim/eskf.py` (test d'i
 
 - **Une panne à la fois ne suffit pas.** O4 était la meilleure configuration sur la perte GNSS seule. Son défaut n'est apparu qu'avec un saut GNSS tombé pendant la rotation du vent, que j'avais placé là sans y penser.
 - **La réinitialisation du vent faisait planter le filtre.** La covariance initiale du vent de l'étape 5 supposait un dérapage exactement nul. Le vent de travers y était alors une combinaison exacte des erreurs de vitesse et de cap, et `P` devenait singulière. Le démarrage passait de justesse, la réinitialisation en vol non. J'ai ajouté une incertitude de 2° sur le dérapage, ce qui change les résultats de l'étape 5 d'au plus 0,02° de cap.
+- **La réinitialisation sur le GNSS donnait une covariance impossible.** Un test Monte-Carlo ajouté après l'étape 8 l'a montré. La nouvelle position vaut le point GNSS moins le biais GNSS estimé, et elle hérite donc de toutes les corrélations de ce biais, pas seulement de celle avec le biais lui-même. Je les mettais à zéro, et `P` pouvait avoir des valeurs propres négatives. Corrigé ; seul le NEES de J5 change (49,3 → 49,1). Le détail est dans [`docs/verification.md`](docs/verification.md#la-réinitialisation-sur-le-gnss).
 - **Le premier test du blocage GNSS ne le reproduisait pas.** J'avais mis un changement de vent rapide (4 m/s en 10 s). L'IMU le sent, le Pitot est rejeté, et la navigation à l'estime reste bonne. Le blocage n'apparaît qu'avec un changement lent : le Pitot reste accepté et tire la vitesse vers une valeur fausse. Le test utilise maintenant une rotation sur 60 s, comme la mission.
 
 Les vibrations, prévues au départ dans cette étape, ne sont pas encore simulées.
@@ -606,16 +607,16 @@ Chaque fonction C++ suit sa version Python ligne à ligne, et le commentaire de 
 <!-- source: docs/step8_results.md -->
 | Vol | Rejeu | Écart de position max | Écart d'attitude max | Décisions du test différentes | Python | C++ (filtre seul) | C++ par événement |
 |---|---|---|---|---|---|---|---|
-| A1 | vol complet | 5,7·10⁻¹⁴ m | 5,6·10⁻¹⁵ rad | 0 sur 9516 | 55,7 s | 0,59 s | 3,91 µs |
-| A2 | vol complet | 5,7·10⁻¹⁴ m | 3,3·10⁻¹⁵ rad | 0 sur 9828 | 47,9 s | 0,53 s | 3,91 µs |
-| B | vol complet | 3,7·10⁻¹³ m | 1,1·10⁻¹⁴ rad | 0 sur 11782 | 45,4 s | 0,55 s | 4,16 µs |
-| B | pertes GNSS de 30 s | 9,2·10⁻¹² m | 1,3·10⁻¹⁴ rad | 0 sur 10382 | 46,1 s | 0,52 s | 3,96 µs |
+| A1 | vol complet | 5,7·10⁻¹⁴ m | 5,6·10⁻¹⁵ rad | 0 sur 9516 | 52,8 s | 0,58 s | 3,86 µs |
+| A2 | vol complet | 5,7·10⁻¹⁴ m | 3,3·10⁻¹⁵ rad | 0 sur 9828 | 48,1 s | 0,59 s | 4,34 µs |
+| B | vol complet | 3,7·10⁻¹³ m | 1,1·10⁻¹⁴ rad | 0 sur 11782 | 44,8 s | 0,54 s | 4,14 µs |
+| B | pertes GNSS de 30 s | 9,2·10⁻¹² m | 1,3·10⁻¹⁴ rad | 0 sur 10382 | 43,6 s | 0,53 s | 4,00 µs |
 
 Sur les trois vols réels, les deux versions donnent les mêmes états à l'arrondi près : 10⁻¹⁴ à 10⁻¹¹ m en position, 10⁻¹⁴ rad en attitude, sur dix minutes de vol et 130 000 à 150 000 événements. Elles prennent aussi les mêmes décisions à chaque test d'innovation. Les écarts qui restent viennent de l'ordre des additions dans les produits de matrices (NumPy et Eigen ne somment pas dans le même ordre). Ils restent au niveau de l'arrondi d'une position de quelques centaines de mètres et ne grossissent pas avec le temps, sauf à la toute fin du vol B, pendant l'impact.
 
-Le C++ traite un vol de dix minutes en un peu plus d'une demi-seconde, 70 à 80 fois plus vite que Python, soit environ 4 µs par événement sur un PC de bureau. Une prédiction prend 3,4 µs et une mise à jour GNSS 9,5 µs. Le budget d'un autopilote à 200 Hz est de 5 ms par échantillon, avec un processeur bien plus lent. Le code n'a pas encore tourné sur une carte embarquée.
+Le C++ traite un vol de dix minutes en un peu plus d'une demi-seconde, 70 à 80 fois plus vite que Python, soit environ 4 µs par événement sur un PC de bureau. Une prédiction prend 3,7 µs et une mise à jour GNSS 9,8 µs. Le budget d'un autopilote à 200 Hz est de 5 ms par échantillon, avec un processeur bien plus lent. Le code n'a pas encore tourné sur une carte embarquée.
 
-`tests/test_step8.py` compile le C++ dans un dossier neuf et compare les deux versions sur des vols simulés qui passent par toutes les branches de la boucle : perte GNSS, rejets, remise sur le GNSS, réinitialisation du vent après un Pitot faux de 30 %. Sur un vol simulé de 240 s, l'écart était de 3·10⁻¹² m. La CI compile le C++ avec tous les avertissements traités comme des erreurs (`-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror`) et lance ses tests unitaires.
+`tests/test_step8.py` compile le C++ dans un dossier neuf et compare les deux versions sur des vols simulés qui passent par toutes les branches de la boucle : perte GNSS, rejets, remise sur le GNSS, réinitialisation du vent après un Pitot faux de 30 %. Sur un vol simulé de 240 s, l'écart était de 3·10⁻¹² m. D'autres tests comparent le flux d'événements envoyé au C++ à la boucle Python réécrite dans le test, vérifient que la configuration arrive sans arrondi, et que `nav_replay` s'arrête en erreur sur un argument manquant, une clé de configuration absente ou un type d'événement inconnu. La CI compile le C++ avec tous les avertissements traités comme des erreurs (`-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror`) et lance ses tests unitaires.
 
 Le code est dans `cpp/include/navcpp/` (rotations, interface du filtre), `cpp/src/eskf.cpp` (le filtre), `cpp/src/replay_main.cpp` (la boucle de rejeu) et `src/navsim/cpp_bridge.py` (compilation, export du flux, lecture des résultats).
 
@@ -645,7 +646,7 @@ Une bonne partie du code et des tests de ce dépôt a été écrite avec un assi
   - des formules fermées pour le budget d'erreur et la latence.
 - **Propriétés** (`tests/test_properties.py`, hypothesis). Des invariants sont tirés sur des centaines d'entrées aléatoires. Ce test a trouvé une covariance singulière dans le filtre de l'étape 1, pour une dérive baro positive mais minuscule.
 - **Tests métamorphiques.** Le même vol fait avec un cap initial tourné de 90° doit donner les mêmes erreurs, tournées de 90°.
-- **Tests de mutation** (`scripts/mutation_check.py`). Cinquante-cinq bugs plausibles sont injectés, en Python et en C++, un par un dans une copie du dépôt, et la suite de tests doit les détecter. La première exécution a révélé deux faiblesses des tests, corrigées depuis. À l'étape 5, une mutation que je croyais sans effet a révélé un vrai bug, présent depuis l'étape 3 : le signe de la jacobienne de réinitialisation de l'EKF. L'histoire est dans [`docs/verification.md`](docs/verification.md#m05--la-mutation-qui-avait-raison). Le rapport est dans [`docs/mutation_report.md`](docs/mutation_report.md).
+- **Tests de mutation** (`scripts/mutation_check.py`). Soixante-trois bugs plausibles sont injectés, en Python et en C++, un par un dans une copie du dépôt, et la suite de tests doit les détecter. La première exécution a révélé deux faiblesses des tests, corrigées depuis. À l'étape 5, une mutation que je croyais sans effet a révélé un vrai bug, présent depuis l'étape 3 : le signe de la jacobienne de réinitialisation de l'EKF. L'histoire est dans [`docs/verification.md`](docs/verification.md#m05--la-mutation-qui-avait-raison). Après l'étape 8, les tests ajoutés pour les étapes 6 à 8 ont trouvé un bug dans la réinitialisation sur le GNSS, et détectent maintenant la seule mutation que je croyais sans effet. Le rapport est dans [`docs/mutation_report.md`](docs/mutation_report.md).
 - **Chiffres du README.** Chaque tableau de résultats de ce fichier est vérifié contre le fichier généré correspondant (`tests/test_docs.py`).
 - **CI.** ruff (règles orientées bugs), la suite complète avec la couverture de code, et la provenance à chaque push ; les mutations chaque semaine.
 

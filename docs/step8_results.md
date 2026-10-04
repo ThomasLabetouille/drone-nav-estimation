@@ -17,22 +17,22 @@ Généré par `scripts/step8_cpp.py`. Configuration R3 de l'étape 7, mêmes log
 
 | Vol | Rejeu | Durée rejouée [s] | Événements | Python [s] | C++, programme complet [s] | C++, filtre seul [s] | C++, par événement [µs] |
 |---|---|---|---|---|---|---|---|
-| A1 | vol complet | 704 | 150630 | 55.7 | 0.69 | 0.59 | 3.91 |
-| A1 | pertes GNSS de 30 s | 704 | 150630 | 54.0 | 0.67 | 0.57 | 3.79 |
-| A2 | vol complet | 635 | 135878 | 47.9 | 0.62 | 0.53 | 3.91 |
-| A2 | pertes GNSS de 30 s | 635 | 135878 | 49.4 | 0.62 | 0.54 | 3.94 |
-| B | vol complet | 592 | 131419 | 45.4 | 0.66 | 0.55 | 4.16 |
-| B | pertes GNSS de 30 s | 592 | 131419 | 46.1 | 0.64 | 0.52 | 3.96 |
+| A1 | vol complet | 704 | 150630 | 52.8 | 0.69 | 0.58 | 3.86 |
+| A1 | pertes GNSS de 30 s | 704 | 150630 | 53.6 | 0.67 | 0.57 | 3.76 |
+| A2 | vol complet | 635 | 135878 | 48.1 | 0.68 | 0.59 | 4.34 |
+| A2 | pertes GNSS de 30 s | 635 | 135878 | 48.8 | 0.63 | 0.55 | 4.04 |
+| B | vol complet | 592 | 131419 | 44.8 | 0.65 | 0.54 | 4.14 |
+| B | pertes GNSS de 30 s | 592 | 131419 | 43.6 | 0.63 | 0.53 | 4.00 |
 
-Tests unitaires C++ (`cpp/tests/test_eskf.cpp`) : predict 3.44 us, GNSS update 9.50 us (20 states, this machine).
+Tests unitaires C++ (`cpp/tests/test_eskf.cpp`) : predict 3.71 us, GNSS update 9.79 us (20 states, this machine).
 
 ## Provenance
 
-- Empreinte du code : `577ab746e3aebb55` (24 fichiers, calculée par le script au moment de l'écriture)
+- Empreinte du code : `a170d079ab6e7bd6` (24 fichiers, calculée par le script au moment de l'écriture)
 - Commit git : non disponible
 - Graine : 0, 1 runs
 - Paramètres : `2a356de0c52cd507` (détail dans le fichier JSON voisin)
 - Python 3.13.15, numpy 2.5.3, scipy 1.18.1
-- Généré le 2026-10-04T13:16:57Z
+- Généré le 2026-10-04T16:21:22Z
 
 `python scripts/check_provenance.py` compare cette empreinte au code actuel.

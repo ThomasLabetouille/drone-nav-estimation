@@ -1,7 +1,7 @@
 {
-  "generated_utc": "2026-10-04T13:16:57Z",
+  "generated_utc": "2026-10-04T16:21:22Z",
   "script": "scripts/step8_cpp.py",
-  "code_fingerprint": "577ab746e3aebb5525b6d14f451bbbc2e4b3b6eb65b50a2012062421f1112694",
+  "code_fingerprint": "a170d079ab6e7bd64dda4c67894fb7890d225ae3773b3f00a5bcf0bd7d1e3ac3",
   "files": {
     "cpp/CMakeLists.txt": "d58aa6381f38109daa46ea2feaf05391fe60ecfe432ee56d2132b59e655eeeb6",
     "cpp/include/navcpp/eskf.hpp": "21f0f312b2670fe71966de7ea420df14b3020ed7f0c82627036f5095de0f280c",
@@ -14,7 +14,7 @@
     "src/navsim/__init__.py": "1ef54889932f5a1d5c3eae5402e991d560dd0dcf0956375745a5dec6e3ce6f68",
     "src/navsim/aiding.py": "c9aac89b20a1b4547152ccde03827db7d5d7dc0b0beb2d9504dc541423939406",
     "src/navsim/cpp_bridge.py": "8165fb7aaa0dad20a7c9e0c5be5ae5054e1147077e57a9ebfedac44acee19220",
-    "src/navsim/eskf.py": "4b18fd5144c2291db3d42579c8fa5e6c3f3d6a3fdaa9c6435df26faa0d0eb2a4",
+    "src/navsim/eskf.py": "b2cd429c78d54a7e626bf7122367daa813ded51fd1abb7a5eaacb3fd2673e3f4",
     "src/navsim/faults.py": "57e69ea3b3950666e9c092cbf6a857db38711115f812960635ee8784a3850b29",
     "src/navsim/fusion.py": "5417df8942d93a5b6010c103ce69472f98d6c475d5ae09ea8c39e65cc30a2919",
     "src/navsim/gnss.py": "a9b9238e280364c3fe36d5ed0ea579ce29e32fd6059d911c4a4479f8e253a50b",
