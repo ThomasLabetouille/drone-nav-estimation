@@ -6,7 +6,7 @@ Estimation de la position, de la vitesse et de l'attitude d'un drone à voilure 
 
 ![Perte du GNSS en vol](docs/img/step6_outage.gif)
 
-Sur cette animation (étape 6), le GNSS est coupé pendant 60 s en pleine mission. Le trait noir est la vraie trajectoire. En orange, le filtre n'a que l'IMU pendant la coupure, et sa position dérive de 74 m. En bleu, il garde le magnétomètre, le baromètre et le Pitot et estime le vent : il dérive de 13 m. Les ellipses sont l'incertitude que chaque filtre annonce. La vidéo en meilleure qualité est dans [`docs/img/step6_outage.mp4`](docs/img/step6_outage.mp4).
+Sur cette animation (étape 6), le GNSS est coupé pendant 60 s en pleine mission. Le trait noir est la vraie trajectoire. En orange, le filtre n'a que l'IMU pendant la coupure, et sa position dérive de 74 m. En bleu, il garde le magnétomètre, le baromètre et le Pitot et estime le vent : il dérive de 13 m. Les ellipses sont l'incertitude que chaque filtre annonce. C'est un des 40 runs simulés, celui dont l'erreur avec le Pitot est la médiane ; sur les 40 runs, l'erreur RMS en fin de coupure est de 85 m en orange et de 15 m en bleu (tableau de l'étape 6). La vidéo en meilleure qualité est dans [`docs/img/step6_outage.mp4`](docs/img/step6_outage.mp4).
 
 Le projet avance par étapes. Chacune ajoute des capteurs ou des états au filtre et se valide avant de passer à la suivante. Les huit étapes sont faites :
 
@@ -20,6 +20,8 @@ Le projet avance par étapes. Chacune ajoute des capteurs ou des états au filtr
 8. le portage du filtre en C++ (matrices de taille fixe, aucune allocation dynamique), identique à la version Python à l'arrondi près sur les vols réels.
 
 Sur les deux vols réels de l'avion A, la position du filtre reste à 0,2 à 0,5 m (RMS) de celle de l'EKF2. Le C++ donne les mêmes états que Python à 10⁻¹¹ m près, en 4 µs par échantillon traité sur un PC de bureau. Le code a été écrit avec un assistant IA. La section [Vérification](#vérification) décrit comment je m'assure qu'il fait ce qu'il dit : oracles indépendants, tests de mutation, provenance de chaque chiffre.
+
+J'ai ensuite qualifié la version `v1.0` dans un dépôt à part, [drone-nav-qualification](https://github.com/ThomasLabetouille/drone-nav-qualification), en traitant ce filtre comme un équipement livré par un tiers : spécification de 35 exigences, plan de test, campagne automatisée, rapport de test et fiches d'anomalie. Les écarts trouvés là-bas (aucun état de sortie entre deux époques GNSS, un échantillon non fini qui contamine tout l'état, une petite perturbation magnétique que le test d'innovation laisse passer, le vol B) seront traités dans une prochaine version.
 
 ## Lancer
 
@@ -726,5 +728,6 @@ docs/
 Le projet couvre les huit étapes prévues. Ce qui reste ouvert :
 
 - le baromètre qui dégrade la navigation à l'estime sur les vols réels (étape 7), dont je n'ai pas isolé le mécanisme ;
-- les vibrations, et un détecteur pour les perturbations magnétiques trop faibles pour le test d'innovation (étape 6) ;
+- les vibrations, et un détecteur pour les perturbations magnétiques trop faibles pour le test d'innovation (étape 6, fiche FA-002 de drone-nav-qualification) ;
+- les autres écarts relevés par la qualification : un état délivré à chaque échantillon IMU (FA-001), le rejet des mesures non finies (FA-003) et le vol B (FA-004) ;
 - le C++ sur une vraie carte (NuttX ou un microcontrôleur Cortex-M), avec ses temps de calcul en simple précision.
